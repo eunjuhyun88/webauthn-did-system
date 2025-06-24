@@ -1,435 +1,504 @@
-// =============================================================================
-// 🔧 useWebAuthn 훅
-// 파일: src/lib/hooks/useWebAuthn.ts
-// =============================================================================
-
-"use client";
-
-import { useState } from 'react';
+'use client';
 
 // =============================================================================
-// 📋 타입 정의
+// 🔐 AuthProvider - Fusion AI Dashboard 완전 호환
+// 파일: src/components/auth/AuthProvider.tsx
 // =============================================================================
 
-interface WebAuthnHookReturn {
-  register: (email: string, displayName: string) => Promise<any>;
-  authenticate: (email: string) => Promise<any>;
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+
+// =============================================================================
+// 📋 타입 정의 (Fusion AI Dashboard 호환)
+// =============================================================================
+
+interface User {
+  id: string;
+  did: string;
+  email: string;
+  displayName: string;
+  authMethod: 'google' | 'webauthn' | 'demo';
+  avatar?: string;
+  subscription: 'free' | 'pro' | 'enterprise';
+  preferences: {
+    theme: 'light' | 'dark' | 'auto';
+    language: 'ko' | 'en' | 'ja';
+    notifications: boolean;
+    aiPersonality: 'professional' | 'friendly' | 'technical' | 'creative';
+    responseStyle: 'brief' | 'detailed' | 'examples';
+    dataRetention: '7days' | '30days' | '1year' | 'forever';
+    privacy: {
+      shareUsageData: boolean;
+      allowPersonalization: boolean;
+      storageLocation: 'global' | 'region' | 'local';
+    };
+  };
+  agentProfile?: {
+    name: string;
+    type: string;
+    did: string;
+    passportNo: string;
+    status: 'active' | 'inactive' | 'learning' | 'maintenance';
+    level: number;
+    trustScore: number;
+    avatar: string;
+  };
+  tokens?: {
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: number;
+  };
+}
+
+interface AuthState {
+  user: User | null;
+  isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
-  clearError: () => void;
 }
 
-interface WebAuthnRegistrationOptions {
-  challenge: string;
-  rp: {
-    name: string;
-    id: string;
-  };
-  user: {
-    id: string;
-    name: string;
-    displayName: string;
-  };
-  pubKeyCredParams: PublicKeyCredentialParameters[];
-  timeout: number;
-  authenticatorSelection?: AuthenticatorSelectionCriteria;
-  attestation?: AttestationConveyancePreference;
-}
-
-interface WebAuthnAuthenticationOptions {
-  challenge: string;
-  rpId: string;
-  allowCredentials: PublicKeyCredentialDescriptor[];
-  timeout: number;
-  userVerification?: UserVerificationRequirement;
-}
-
-// =============================================================================
-// 🔧 유틸리티 함수들
-// =============================================================================
-
-/**
- * Base64URL 문자열을 Uint8Array로 변환
- */
-function base64URLToUint8Array(base64url: string): Uint8Array {
-  // Base64URL을 Base64로 변환
-  const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
-  // 패딩 추가
-  const padded = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=');
+interface AuthContextType extends AuthState {
+  // 인증 메서드
+  loginWithWebAuthn: (email: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
+  loginWithDemo: () => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
   
-  try {
-    return Uint8Array.from(atob(padded), c => c.charCodeAt(0));
-  } catch (error) {
-    console.error('Base64URL 디코딩 실패:', error);
-    throw new Error('잘못된 Base64URL 형식입니다.');
-  }
+  // 사용자 관리
+  updateUser: (userData: Partial<User>) => void;
+  refreshUser: () => Promise<void>;
+  
+  // 유틸리티
+  clearError: () => void;
+  checkAuthStatus: () => Promise<boolean>;
 }
 
-/**
- * ArrayBuffer를 Base64URL로 변환
- */
-function arrayBufferToBase64URL(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  const base64 = btoa(String.fromCharCode(...bytes));
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-}
+// =============================================================================
+// 🎯 Context 생성
+// =============================================================================
 
-/**
- * WebAuthn 지원 여부 확인
- */
-function isWebAuthnSupported(): boolean {
-  return !!(
-    navigator.credentials &&
-    navigator.credentials.create &&
-    navigator.credentials.get &&
-    window.PublicKeyCredential
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// =============================================================================
+// 🔧 AuthProvider 컴포넌트
+// =============================================================================
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  
+  const [authState, setAuthState] = useState<AuthState>({
+    user: null,
+    isAuthenticated: false,
+    isLoading: true,
+    error: null,
+  });
+
+  // =============================================================================
+  // 🔄 초기화 및 인증 상태 확인
+  // =============================================================================
+
+  useEffect(() => {
+    checkInitialAuth();
+  }, []);
+
+  const checkInitialAuth = async () => {
+    try {
+      setAuthState(prev => ({ ...prev, isLoading: true }));
+      
+      // 저장된 토큰 확인
+      const savedToken = localStorage.getItem('auth-token');
+      const savedUser = localStorage.getItem('auth-user');
+      
+      if (savedToken && savedUser) {
+        const userData = JSON.parse(savedUser);
+        
+        // 토큰 유효성 검증
+        const isValid = await validateToken(savedToken);
+        
+        if (isValid) {
+          setAuthState({
+            user: userData,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
+          return;
+        } else {
+          // 토큰이 유효하지 않으면 정리
+          localStorage.removeItem('auth-token');
+          localStorage.removeItem('auth-user');
+        }
+      }
+      
+      setAuthState(prev => ({ ...prev, isLoading: false }));
+      
+    } catch (error) {
+      console.error('Initial auth check failed:', error);
+      setAuthState({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        error: null,
+      });
+    }
+  };
+
+  // =============================================================================
+  // 🔐 WebAuthn 로그인
+  // =============================================================================
+
+  const loginWithWebAuthn = async (email: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
+
+      // 1. 인증 시작
+      const beginResponse = await fetch('/api/webauthn/authenticate/begin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!beginResponse.ok) {
+        throw new Error('Failed to start authentication');
+      }
+
+      const { options } = await beginResponse.json();
+
+      // 2. WebAuthn 인증 실행
+      const credential = await navigator.credentials.get({
+        publicKey: {
+          ...options,
+          challenge: new Uint8Array(options.challenge),
+          allowCredentials: options.allowCredentials?.map((cred: any) => ({
+            ...cred,
+            id: new Uint8Array(cred.id),
+          })),
+        },
+      }) as PublicKeyCredential;
+
+      if (!credential) {
+        throw new Error('Authentication cancelled');
+      }
+
+      // 3. 인증 완료
+      const completeResponse = await fetch('/api/webauthn/authenticate/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          credential: {
+            id: credential.id,
+            rawId: Array.from(new Uint8Array(credential.rawId)),
+            response: {
+              authenticatorData: Array.from(new Uint8Array((credential.response as AuthenticatorAssertionResponse).authenticatorData)),
+              clientDataJSON: Array.from(new Uint8Array(credential.response.clientDataJSON)),
+              signature: Array.from(new Uint8Array((credential.response as AuthenticatorAssertionResponse).signature)),
+            },
+            type: credential.type,
+          },
+          challengeData: options,
+        }),
+      });
+
+      if (!completeResponse.ok) {
+        throw new Error('Authentication verification failed');
+      }
+
+      const { success, user, tokens } = await completeResponse.json();
+
+      if (success && user && tokens) {
+        // 토큰과 사용자 정보 저장
+        localStorage.setItem('auth-token', tokens.accessToken);
+        localStorage.setItem('auth-user', JSON.stringify(user));
+
+        setAuthState({
+          user,
+          isAuthenticated: true,
+          isLoading: false,
+          error: null,
+        });
+
+        // 대시보드로 리다이렉트
+        router.push('/dashboard');
+
+        return { success: true };
+      } else {
+        throw new Error('Authentication failed');
+      }
+
+    } catch (error: any) {
+      console.error('WebAuthn login failed:', error);
+      
+      setAuthState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: error.message || 'WebAuthn login failed',
+      }));
+
+      return { success: false, error: error.message || 'WebAuthn login failed' };
+    }
+  };
+
+  // =============================================================================
+  // 🔐 Google 로그인 (시뮬레이션)
+  // =============================================================================
+
+  const loginWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
+    try {
+      setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
+
+      // Google OAuth 시뮬레이션
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const demoUser: User = {
+        id: 'google_' + Date.now(),
+        did: `did:web:example.com:google-${Math.random().toString(36).substring(7)}`,
+        email: 'user@gmail.com',
+        displayName: 'Google User',
+        authMethod: 'google',
+        subscription: 'pro',
+        preferences: {
+          theme: 'light',
+          language: 'ko',
+          notifications: true,
+          aiPersonality: 'friendly',
+          responseStyle: 'detailed',
+          dataRetention: '30days',
+          privacy: {
+            shareUsageData: false,
+            allowPersonalization: true,
+            storageLocation: 'region'
+          }
+        },
+        agentProfile: {
+          name: 'Fusion AI Agent',
+          type: 'Universal Personal Assistant',
+          did: `did:fusion:agent:google-${Math.random().toString(36).substring(7)}`,
+          passportNo: 'FUS240125002',
+          status: 'active',
+          level: 48,
+          trustScore: 95,
+          avatar: '🤖',
+        },
+        tokens: {
+          accessToken: 'google_demo_token',
+          refreshToken: 'google_demo_refresh',
+          expiresAt: Date.now() + 3600000
+        }
+      };
+
+      localStorage.setItem('auth-token', demoUser.tokens!.accessToken);
+      localStorage.setItem('auth-user', JSON.stringify(demoUser));
+
+      setAuthState({
+        user: demoUser,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null,
+      });
+
+      router.push('/dashboard');
+      return { success: true };
+
+    } catch (error: any) {
+      setAuthState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: error.message || 'Google login failed',
+      }));
+
+      return { success: false, error: error.message || 'Google login failed' };
+    }
+  };
+
+  // =============================================================================
+  // 🔐 데모 로그인
+  // =============================================================================
+
+  const loginWithDemo = async (): Promise<{ success: boolean; error?: string }> => {
+    try {
+      setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
+
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const demoUser: User = {
+        id: 'demo_' + Date.now(),
+        did: `did:web:example.com:demo-${Math.random().toString(36).substring(7)}`,
+        email: 'demo@fusion-ai.com',
+        displayName: 'Demo User',
+        authMethod: 'demo',
+        subscription: 'free',
+        preferences: {
+          theme: 'light',
+          language: 'ko',
+          notifications: true,
+          aiPersonality: 'friendly',
+          responseStyle: 'detailed',
+          dataRetention: '7days',
+          privacy: {
+            shareUsageData: false,
+            allowPersonalization: true,
+            storageLocation: 'local'
+          }
+        },
+        agentProfile: {
+          name: 'Demo AI Agent',
+          type: 'Basic Assistant',
+          did: `did:fusion:agent:demo-${Math.random().toString(36).substring(7)}`,
+          passportNo: 'FUS240125003',
+          status: 'active',
+          level: 25,
+          trustScore: 85,
+          avatar: '🤖',
+        },
+        tokens: {
+          accessToken: 'demo_token',
+          refreshToken: 'demo_refresh',
+          expiresAt: Date.now() + 3600000
+        }
+      };
+
+      localStorage.setItem('auth-token', demoUser.tokens!.accessToken);
+      localStorage.setItem('auth-user', JSON.stringify(demoUser));
+
+      setAuthState({
+        user: demoUser,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null,
+      });
+
+      router.push('/dashboard');
+      return { success: true };
+
+    } catch (error: any) {
+      setAuthState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: error.message || 'Demo login failed',
+      }));
+
+      return { success: false, error: error.message || 'Demo login failed' };
+    }
+  };
+
+  // =============================================================================
+  // 🔓 로그아웃
+  // =============================================================================
+
+  const logout = async () => {
+    try {
+      // 서버에 로그아웃 요청
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authState.user?.tokens?.accessToken}`,
+        },
+      });
+    } catch (error) {
+      console.error('Logout API failed:', error);
+    } finally {
+      // 로컬 상태 정리
+      localStorage.removeItem('auth-token');
+      localStorage.removeItem('auth-user');
+      
+      setAuthState({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        error: null,
+      });
+
+      router.push('/login');
+    }
+  };
+
+  // =============================================================================
+  // 🔧 유틸리티 메서드들
+  // =============================================================================
+
+  const updateUser = (userData: Partial<User>) => {
+    if (authState.user) {
+      const updatedUser = { ...authState.user, ...userData };
+      setAuthState(prev => ({ ...prev, user: updatedUser }));
+      localStorage.setItem('auth-user', JSON.stringify(updatedUser));
+    }
+  };
+
+  const refreshUser = async () => {
+    if (!authState.user?.tokens?.accessToken) return;
+
+    try {
+      const response = await fetch('/api/user/profile', {
+        headers: {
+          'Authorization': `Bearer ${authState.user.tokens.accessToken}`,
+        },
+      });
+
+      if (response.ok) {
+        const { user } = await response.json();
+        updateUser(user);
+      }
+    } catch (error) {
+      console.error('Failed to refresh user data:', error);
+    }
+  };
+
+  const clearError = () => {
+    setAuthState(prev => ({ ...prev, error: null }));
+  };
+
+  const checkAuthStatus = async (): Promise<boolean> => {
+    return authState.isAuthenticated && !!authState.user;
+  };
+
+  const validateToken = async (token: string): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/auth/validate', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  };
+
+  // =============================================================================
+  // 🎯 Context Value
+  // =============================================================================
+
+  const contextValue: AuthContextType = {
+    ...authState,
+    loginWithWebAuthn,
+    loginWithGoogle,
+    loginWithDemo,
+    logout,
+    updateUser,
+    refreshUser,
+    clearError,
+    checkAuthStatus,
+  };
+
+  return (
+    <AuthContext.Provider value={contextValue}>
+      {children}
+    </AuthContext.Provider>
   );
 }
 
-/**
- * 플랫폼 인증기 지원 여부 확인
- */
-async function isPlatformAuthenticatorAvailable(): Promise<boolean> {
-  try {
-    if (window.PublicKeyCredential && window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
-      return await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-    }
-    return false;
-  } catch (error) {
-    console.warn('플랫폼 인증기 확인 실패:', error);
-    return false;
+// =============================================================================
+// 🔗 useAuth 훅
+// =============================================================================
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
   }
+  return context;
 }
 
-// =============================================================================
-// 🎣 useWebAuthn 훅
-// =============================================================================
-
-export function useWebAuthn(): WebAuthnHookReturn {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const clearError = () => setError(null);
-
-  // ===========================================================================
-  // 📝 등록 함수
-  // ===========================================================================
-  
-  const register = async (email: string, displayName: string) => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      console.log('🚀 WebAuthn 등록 시작:', { email, displayName });
-
-      // 1. WebAuthn 지원 여부 확인
-      if (!isWebAuthnSupported()) {
-        throw new Error('이 브라우저는 WebAuthn을 지원하지 않습니다.');
-      }
-
-      // 2. 플랫폼 인증기 확인
-      const isPlatformAvailable = await isPlatformAuthenticatorAvailable();
-      if (!isPlatformAvailable) {
-        console.warn('⚠️ 플랫폼 인증기를 사용할 수 없습니다. 외부 인증기를 사용해보세요.');
-      }
-
-      // 3. 등록 시작 API 호출
-      console.log('1️⃣ 등록 옵션 요청 중...');
-      const beginResponse = await fetch('/api/webauthn/register/begin', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true'
-        },
-        body: JSON.stringify({ email, displayName })
-      });
-
-      if (!beginResponse.ok) {
-        const errorData = await beginResponse.json();
-        throw new Error(errorData.error || `HTTP ${beginResponse.status}`);
-      }
-
-      const beginData = await beginResponse.json();
-
-      if (!beginData.success) {
-        throw new Error(beginData.error || '등록 시작 실패');
-      }
-
-      console.log('✅ 등록 옵션 수신 완료');
-
-      // 4. WebAuthn 옵션 준비
-      const options: WebAuthnRegistrationOptions = beginData.registrationOptions;
-      
-      const createCredentialOptions: CredentialCreationOptions = {
-        publicKey: {
-          ...options,
-          challenge: base64URLToUint8Array(options.challenge),
-          user: {
-            ...options.user,
-            id: new TextEncoder().encode(options.user.id)
-          }
-        }
-      };
-
-      console.log('2️⃣ 생체 인증 진행 중... (Touch ID/Face ID/Windows Hello)');
-
-      // 5. WebAuthn Credential 생성
-      const credential = await navigator.credentials.create(createCredentialOptions) as PublicKeyCredential;
-
-      if (!credential) {
-        throw new Error('WebAuthn credential 생성이 취소되었습니다.');
-      }
-
-      if (!credential.response) {
-        throw new Error('WebAuthn credential 응답이 없습니다.');
-      }
-
-      console.log('✅ 생체 인증 완료');
-
-      // 6. Credential 데이터 직렬화
-      const response = credential.response as AuthenticatorAttestationResponse;
-      
-      const credentialData = {
-        id: credential.id,
-        rawId: arrayBufferToBase64URL(credential.rawId),
-        response: {
-          attestationObject: arrayBufferToBase64URL(response.attestationObject),
-          clientDataJSON: arrayBufferToBase64URL(response.clientDataJSON)
-        },
-        type: credential.type,
-        clientExtensionResults: credential.getClientExtensionResults()
-      };
-
-      // 7. 등록 완료 API 호출
-      console.log('3️⃣ 등록 완료 처리 중...');
-      
-      const completeResponse = await fetch('/api/webauthn/register/complete', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true'
-        },
-        body: JSON.stringify({
-          credential: credentialData,
-          challengeData: options
-        })
-      });
-
-      if (!completeResponse.ok) {
-        const errorData = await completeResponse.json();
-        throw new Error(errorData.error || `HTTP ${completeResponse.status}`);
-      }
-
-      const completeData = await completeResponse.json();
-
-      if (!completeData.success) {
-        throw new Error(completeData.error || '등록 완료 실패');
-      }
-
-      console.log('🎉 WebAuthn 등록 완료:', completeData.user);
-      return completeData;
-
-    } catch (error: any) {
-      console.error('❌ WebAuthn 등록 오류:', error);
-      
-      let errorMessage = '등록 중 오류가 발생했습니다.';
-      
-      if (error.name === 'NotAllowedError') {
-        errorMessage = '생체 인증이 취소되었습니다.';
-      } else if (error.name === 'NotSupportedError') {
-        errorMessage = '이 기기에서는 생체 인증을 사용할 수 없습니다.';
-      } else if (error.name === 'SecurityError') {
-        errorMessage = '보안 오류가 발생했습니다. HTTPS 연결을 확인하세요.';
-      } else if (error.name === 'InvalidStateError') {
-        errorMessage = '이미 등록된 인증기입니다.';
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      setError(errorMessage);
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // ===========================================================================
-  // 🔑 인증 함수
-  // ===========================================================================
-  
-  const authenticate = async (email: string) => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      console.log('🔐 WebAuthn 인증 시작:', { email });
-
-      // 1. WebAuthn 지원 여부 확인
-      if (!isWebAuthnSupported()) {
-        throw new Error('이 브라우저는 WebAuthn을 지원하지 않습니다.');
-      }
-
-      // 2. 인증 시작 API 호출
-      console.log('1️⃣ 인증 옵션 요청 중...');
-      const beginResponse = await fetch('/api/webauthn/authenticate/begin', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true'
-        },
-        body: JSON.stringify({ email })
-      });
-
-      if (!beginResponse.ok) {
-        const errorData = await beginResponse.json();
-        throw new Error(errorData.error || `HTTP ${beginResponse.status}`);
-      }
-
-      const beginData = await beginResponse.json();
-
-      if (!beginData.success) {
-        throw new Error(beginData.error || '인증 시작 실패');
-      }
-
-      console.log('✅ 인증 옵션 수신 완료');
-
-      // 3. WebAuthn 옵션 준비
-      const options: WebAuthnAuthenticationOptions = beginData.authenticationOptions;
-      
-      const getCredentialOptions: CredentialRequestOptions = {
-        publicKey: {
-          ...options,
-          challenge: base64URLToUint8Array(options.challenge),
-          allowCredentials: options.allowCredentials.map(cred => ({
-            ...cred,
-            id: base64URLToUint8Array(cred.id as string)
-          }))
-        }
-      };
-
-      console.log('2️⃣ 생체 인증 진행 중...');
-
-      // 4. WebAuthn 인증
-      const credential = await navigator.credentials.get(getCredentialOptions) as PublicKeyCredential;
-
-      if (!credential) {
-        throw new Error('WebAuthn 인증이 취소되었습니다.');
-      }
-
-      if (!credential.response) {
-        throw new Error('WebAuthn 인증 응답이 없습니다.');
-      }
-
-      console.log('✅ 생체 인증 완료');
-
-      // 5. 인증 데이터 직렬화
-      const response = credential.response as AuthenticatorAssertionResponse;
-      
-      const credentialData = {
-        id: credential.id,
-        rawId: arrayBufferToBase64URL(credential.rawId),
-        response: {
-          authenticatorData: arrayBufferToBase64URL(response.authenticatorData),
-          clientDataJSON: arrayBufferToBase64URL(response.clientDataJSON),
-          signature: arrayBufferToBase64URL(response.signature),
-          userHandle: response.userHandle ? arrayBufferToBase64URL(response.userHandle) : null
-        },
-        type: credential.type,
-        clientExtensionResults: credential.getClientExtensionResults()
-      };
-
-      // 6. 인증 완료 API 호출
-      console.log('3️⃣ 인증 완료 처리 중...');
-      
-      const completeResponse = await fetch('/api/webauthn/authenticate/complete', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true'
-        },
-        body: JSON.stringify({
-          credential: credentialData,
-          challengeData: options
-        })
-      });
-
-      if (!completeResponse.ok) {
-        const errorData = await completeResponse.json();
-        throw new Error(errorData.error || `HTTP ${completeResponse.status}`);
-      }
-
-      const completeData = await completeResponse.json();
-
-      if (!completeData.success) {
-        throw new Error(completeData.error || '인증 완료 실패');
-      }
-
-      console.log('🎉 WebAuthn 인증 완료:', completeData.user);
-      return completeData;
-
-    } catch (error: any) {
-      console.error('❌ WebAuthn 인증 오류:', error);
-      
-      let errorMessage = '인증 중 오류가 발생했습니다.';
-      
-      if (error.name === 'NotAllowedError') {
-        errorMessage = '생체 인증이 취소되었습니다.';
-      } else if (error.name === 'NotSupportedError') {
-        errorMessage = '이 기기에서는 생체 인증을 사용할 수 없습니다.';
-      } else if (error.name === 'SecurityError') {
-        errorMessage = '보안 오류가 발생했습니다. HTTPS 연결을 확인하세요.';
-      } else if (error.name === 'InvalidStateError') {
-        errorMessage = '등록된 인증기를 찾을 수 없습니다.';
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      setError(errorMessage);
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return {
-    register,
-    authenticate,
-    isLoading,
-    error,
-    clearError
-  };
-}
-
-// =============================================================================
-// 🔧 추가 유틸리티 함수들 (export)
-// =============================================================================
-
-/**
- * WebAuthn 기능 지원 여부 확인
- */
-export { isWebAuthnSupported, isPlatformAuthenticatorAvailable };
-
-/**
- * 인증기 정보 조회
- */
-export async function getAuthenticatorInfo() {
-  if (!isWebAuthnSupported()) {
-    return null;
-  }
-
-  try {
-    const available = await isPlatformAuthenticatorAvailable();
-    
-    return {
-      webauthnSupported: true,
-      platformAuthenticatorAvailable: available,
-      userAgent: navigator.userAgent,
-      platform: navigator.platform
-    };
-  } catch (error) {
-    console.error('인증기 정보 조회 실패:', error);
-    return null;
-  }
-}
-
-export default useWebAuthn;
+export { AuthContext };
+export type { User, AuthContextType };
