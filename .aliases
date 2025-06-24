@@ -1,0 +1,31 @@
+# =============================================================================
+# 🎯 WebAuthn + DID + Cue 시스템 편의 명령어 (완벽한 버전)
+# source .aliases 로 로드
+# =============================================================================
+
+alias track='bash perfect_tracker.sh'
+alias quick='bash perfect_tracker.sh quick'
+alias next='bash perfect_tracker.sh next'
+alias watch-progress='bash perfect_tracker.sh watch'
+
+# 개발 편의 명령어
+alias dev='npm run dev'
+alias build='npm run build'
+alias test='npm test'
+
+# Git 편의 명령어  
+alias git-save='git add . && git commit -m "Progress: $(date +%H:%M)"'
+alias git-push='git add . && git commit -m "Update" && git push'
+
+echo "🎉 완벽한 추적기 명령어 로드됨!"
+echo ""
+echo "📊 사용 가능한 명령어:"
+echo "   track       - 전체 진행 상황"
+echo "   quick       - 빠른 상태 확인"
+echo "   next        - 다음 할 일"
+echo "   watch-progress - 실시간 모니터링"
+echo ""
+echo "🚀 개발 명령어:"
+echo "   dev         - npm run dev"
+echo "   git-save    - 빠른 Git 커밋"
+echo ""
