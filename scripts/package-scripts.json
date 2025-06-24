@@ -1,0 +1,17 @@
+{
+  "scripts": {
+    "dev": "concurrently \"npm run dev:web\" \"npm run dev:api\"",
+    "dev:web": "next dev",
+    "dev:api": "nodemon --watch packages --ext ts --exec \"ts-node packages/system/bootstrap/api-server.ts\"",
+    "build": "./scripts/build.sh",
+    "build:packages": "tsc --build packages/*/tsconfig.json",
+    "build:web": "next build",
+    "build:api": "tsc packages/system/bootstrap/api-server.ts --outDir dist",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit",
+    "setup": "./scripts/setup.sh",
+    "migrate": "./scripts/migrate.sh",
+    "test": "echo \"No tests yet\" && exit 0"
+  }
+}

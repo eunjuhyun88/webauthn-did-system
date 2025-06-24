@@ -1,103 +1,128 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+import { useState } from 'react';
+import { Shield, Fingerprint, CheckCircle } from 'lucide-react';
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+export default function HomePage() {
+  const [isReady, setIsReady] = useState(true);
+
+  if (!isReady) {
+    return (
+      <div className="min-h-screen bg-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <h1 className="text-xl font-semibold text-gray-900">시스템 초기화 중...</h1>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <div className="container mx-auto px-4 py-16">
+        {/* 헤더 */}
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-blue-100 rounded-full mb-6">
+            <Shield className="w-10 h-10 text-blue-600" />
+          </div>
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            WebAuthn + DID 시스템
+          </h1>
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            4-Layer 아키텍처 기반의 차세대 인증 및 신원 관리 시스템
+          </p>
+        </div>
+
+        {/* 상태 카드들 */}
+        <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-12">
+          {/* 설정 완료 */}
+          <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+            <div className="flex items-center gap-3 mb-4">
+              <CheckCircle className="w-6 h-6 text-green-500" />
+              <h3 className="text-lg font-semibold text-gray-900">설정 완료</h3>
+            </div>
+            <p className="text-gray-600">
+              프로젝트 구조와 기본 패키지가 성공적으로 설치되었습니다.
+            </p>
+          </div>
+
+          {/* WebAuthn 준비 */}
+          <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+            <div className="flex items-center gap-3 mb-4">
+              <Fingerprint className="w-6 h-6 text-blue-500" />
+              <h3 className="text-lg font-semibold text-gray-900">WebAuthn 준비</h3>
+            </div>
+            <p className="text-gray-600">
+              생체 인증 시스템이 준비되었습니다. HTTPS 환경에서 테스트하세요.
+            </p>
+          </div>
+
+          {/* AI 통합 */}
+          <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-6 h-6 text-purple-500">🤖</div>
+              <h3 className="text-lg font-semibold text-gray-900">AI 통합</h3>
+            </div>
+            <p className="text-gray-600">
+              OpenAI, Claude, Gemini AI 서비스 연동이 준비되었습니다.
+            </p>
+          </div>
+        </div>
+
+        {/* 다음 단계 */}
+        <div className="bg-white rounded-xl shadow-lg p-8 max-w-2xl mx-auto">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">다음 단계</h2>
+          
+          <div className="space-y-4">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-semibold">
+                1
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-1">환경 변수 설정</h3>
+                <p className="text-gray-600">
+                  <code className="bg-gray-100 px-2 py-1 rounded">.env.local</code> 파일에서 API 키들을 실제 값으로 수정하세요.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-semibold">
+                2
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-1">ngrok 터널 시작</h3>
+                <p className="text-gray-600">
+                  <code className="bg-gray-100 px-2 py-1 rounded">ngrok http 3000</code> 명령으로 HTTPS 터널을 생성하세요.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-semibold">
+                3
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-1">컴포넌트 구현</h3>
+                <p className="text-gray-600">
+                  WebAuthn, DID, AI 컴포넌트들을 단계적으로 구현하세요.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 p-4 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-700">
+              <strong>💡 팁:</strong> 개발 중에는 데모 모드를 사용하여 기능을 먼저 테스트할 수 있습니다.
+            </p>
+          </div>
+        </div>
+
+        {/* 푸터 */}
+        <div className="text-center mt-12 text-sm text-gray-500">
+          <p>4-Layer 아키텍처 | WebAuthn + DID + AI 통합 시스템</p>
+        </div>
+      </div>
     </div>
   );
 }

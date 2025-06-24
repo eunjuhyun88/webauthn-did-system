@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🔐 WebAuthn + DID + DB 연동 시스템
 
-## Getting Started
+4-Layer 아키텍처 기반의 WebAuthn 인증, DID 생성, 데이터베이스 연동 시스템
 
-First, run the development server:
+## 🚀 빠른 시작
 
+### 1. 환경 설정
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# 프로젝트 클론 후
+npm install
+cp .env.local.example .env.local
+# .env.local 파일에서 API 키들 설정
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. 개발 서버 실행
+```bash
+# 개발 서버 시작
+npm run dev
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+# ngrok 터널 시작 (별도 터미널)
+ngrok http 3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3. 데이터베이스 설정
+```bash
+# Supabase 마이그레이션 실행
+npm run migrate
+```
 
-## Learn More
+## 📁 프로젝트 구조
 
-To learn more about Next.js, take a look at the following resources:
+```
+webauthn-did-system/
+├── packages/          # 4-Layer 아키텍처 패키지들
+│   ├── core/          # 핵심 인터페이스
+│   ├── ui-layer/      # UI 구현체
+│   ├── core-layer/    # 비즈니스 로직
+│   ├── integration-layer/  # 외부 연동
+│   ├── data-layer/    # 데이터 관리
+│   └── system/        # 시스템 조립
+├── apps/              # 실행 가능한 앱들
+├── scripts/           # 개발/배포 스크립트
+└── docs/              # 문서
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🎯 주요 기능
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- ✅ WebAuthn 생체 인증 (Touch ID, Face ID, Windows Hello)
+- ✅ W3C DID 표준 준수 신원 관리
+- ✅ Supabase 기반 실시간 데이터 저장
+- ✅ Universal AI Agent 통합
+- ✅ 다중 AI 모델 지원 (OpenAI, Claude, Gemini)
 
-## Deploy on Vercel
+## 🔧 개발 스크립트
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run dev          # 개발 서버 실행
+npm run build        # 프로젝트 빌드
+npm run migrate      # DB 마이그레이션
+npm run type-check   # 타입 체크
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📚 문서
+
+- [아키텍처 가이드](./docs/architecture.md)
+- [API 레퍼런스](./docs/api-reference.md)
+- [배포 가이드](./docs/deployment.md)
