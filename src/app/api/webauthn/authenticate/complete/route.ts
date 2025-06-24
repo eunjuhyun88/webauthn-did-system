@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { SignJWT } from 'jose';
-
+import { WebAuthnAdapter } from '@/integration-layer/webauthn/WebAuthnAdapter';
 // =============================================================================
 // 🔧 환경 설정 및 초기화
 // =============================================================================

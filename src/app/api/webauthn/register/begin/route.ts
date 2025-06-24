@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAIServiceManager, formatAIMessage, type AIMessage, type AIProvider, ConversationContext, aiResponseCache } from '@/services/ai';
+import { WebAuthnAdapter } from '@/integration-layer/webauthn/WebAuthnAdapter';
 
 // 요청 인터페이스
 interface ChatRequest {

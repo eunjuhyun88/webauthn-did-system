@@ -1,0 +1,31 @@
+{
+	"folders": [
+		{
+			"path": "apps"
+		},
+		{
+			"path": "backup_trackers"
+		},
+		{
+			"path": "config"
+		},
+		{
+			"path": "docs"
+		},
+		{
+			"path": "node_modules"
+		},
+		{
+			"path": "packages"
+		},
+		{
+			"path": "public"
+		},
+		{
+			"path": "scripts"
+		},
+		{
+			"path": "src"
+		}
+	]
+}

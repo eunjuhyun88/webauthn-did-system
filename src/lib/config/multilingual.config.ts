@@ -14,7 +14,7 @@ import {
   MultilingualConfig,
   LanguageDetectionConfig,
   CulturalAdaptationConfig 
-} from '@/types/multilingual-cue.types';
+} from '@/types/multilingual-cue';
 
 // =============================================================================
 // 🎯 기본 다국어 시스템 설정

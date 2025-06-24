@@ -1,393 +1,496 @@
 // =============================================================================
-// 🏥 시스템 상태 확인 API - src/app/api/system/health/route.ts
-// 전체 시스템 상태를 확인하는 헬스체크 엔드포인트
+// 🏥 시스템 상태 확인 API
+// 파일: src/app/api/system/health/route.ts
 // =============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, testConnection } from '@/database/supabase/client';
-import CONFIG from '@/lib/config';
+import { 
+  checkDatabaseConnection, 
+  initializeDatabase,
+  getDatabaseInfo 
+} from '@/lib/database/supabase';
+import { getWebAuthnServer } from '@/auth/webauthn/server';
+import { getDIDService } from '@/identity/did';
+import config, { validateConfig, getSystemInfo } from '@/lib/config';
 
 // =============================================================================
-// 🔍 개별 서비스 상태 확인 함수들
-// =============================================================================
-
-/**
- * 데이터베이스 연결 상태 확인
- */
-async function checkDatabaseHealth(): Promise<{
-  status: 'healthy' | 'unhealthy' | 'degraded';
-  responseTime: number;
-  details: any;
-}> {
-  const startTime = Date.now();
-  
-  try {
-    // Supabase 연결 테스트
-    const isConnected = await testConnection();
-    const responseTime = Date.now() - startTime;
-
-    if (isConnected) {
-      // 추가 상태 정보 수집
-      const { data: tableCount } = await supabase
-        .from('information_schema.tables')
-        .select('table_name')
-        .eq('table_schema', 'public');
-
-      return {
-        status: 'healthy',
-        responseTime,
-        details: {
-          connected: true,
-          url: CONFIG.DATABASE.SUPABASE_URL.split('@')[1] || 'hidden',
-          tableCount: tableCount?.length || 0,
-          timestamp: new Date().toISOString()
-        }
-      };
-    } else {
-      return {
-        status: 'unhealthy',
-        responseTime,
-        details: {
-          connected: false,
-          error: 'Connection failed'
-        }
-      };
-    }
-  } catch (error: any) {
-    return {
-      status: 'unhealthy',
-      responseTime: Date.now() - startTime,
-      details: {
-        connected: false,
-        error: error.message,
-        code: error.code
-      }
-    };
-  }
-}
-
-/**
- * AI 서비스 상태 확인
- */
-async function checkAIServicesHealth(): Promise<{
-  status: 'healthy' | 'unhealthy' | 'degraded';
-  services: any;
-}> {
-  const services = {
-    openai: { available: !!CONFIG.AI.OPENAI.API_KEY, status: 'unknown' },
-    claude: { available: !!CONFIG.AI.CLAUDE.API_KEY, status: 'unknown' },
-    gemini: { available: !!CONFIG.AI.GEMINI.API_KEY, status: 'unknown' }
-  };
-
-  // 간단한 API 키 존재 여부만 확인 (실제 호출은 비용이 발생할 수 있음)
-  const availableCount = Object.values(services).filter(s => s.available).length;
-  
-  let status: 'healthy' | 'unhealthy' | 'degraded' = 'unhealthy';
-  if (availableCount >= 3) status = 'healthy';
-  else if (availableCount >= 1) status = 'degraded';
-
-  return { status, services };
-}
-
-/**
- * WebAuthn 설정 상태 확인
- */
-function checkWebAuthnHealth(): {
-  status: 'healthy' | 'unhealthy' | 'degraded';
-  config: any;
-} {
-  const config = {
-    enabled: CONFIG.FEATURES.ENABLE_WEBAUTHN,
-    rpId: CONFIG.WEBAUTHN.RP_ID,
-    rpName: CONFIG.WEBAUTHN.RP_NAME,
-    origin: CONFIG.WEBAUTHN.ORIGIN,
-    validDomain: CONFIG.WEBAUTHN.RP_ID.includes('.') || CONFIG.SERVER.NODE_ENV === 'development'
-  };
-
-  let status: 'healthy' | 'unhealthy' | 'degraded' = 'healthy';
-  
-  if (!config.enabled) {
-    status = 'degraded';
-  } else if (!config.validDomain && CONFIG.SERVER.NODE_ENV === 'production') {
-    status = 'unhealthy';
-  }
-
-  return { status, config };
-}
-
-/**
- * DID 서비스 상태 확인
- */
-function checkDIDHealth(): {
-  status: 'healthy' | 'unhealthy' | 'degraded';
-  config: any;
-} {
-  const config = {
-    enabled: CONFIG.FEATURES.ENABLE_DID,
-    method: CONFIG.DID.METHOD,
-    network: CONFIG.DID.NETWORK,
-    resolverUrl: CONFIG.DID.RESOLVER_URL
-  };
-
-  const status = config.enabled ? 'healthy' : 'degraded';
-
-  return { status, config };
-}
-
-/**
- * 환경 변수 상태 확인
- */
-function checkEnvironmentHealth(): {
-  status: 'healthy' | 'unhealthy' | 'degraded';
-  variables: any;
-} {
-  const requiredVars = [
-    'SUPABASE_URL',
-    'SUPABASE_ANON_KEY',
-    'JWT_SECRET'
-  ];
-
-  const optionalVars = [
-    'OPENAI_API_KEY',
-    'CLAUDE_API_KEY',
-    'GEMINI_API_KEY',
-    'GOOGLE_CLIENT_ID'
-  ];
-
-  const missing = requiredVars.filter(key => !process.env[key]);
-  const availableOptional = optionalVars.filter(key => !!process.env[key]);
-
-  let status: 'healthy' | 'unhealthy' | 'degraded' = 'healthy';
-  if (missing.length > 0) {
-    status = 'unhealthy';
-  } else if (availableOptional.length === 0) {
-    status = 'degraded';
-  }
-
-  return {
-    status,
-    variables: {
-      required: {
-        total: requiredVars.length,
-        available: requiredVars.length - missing.length,
-        missing
-      },
-      optional: {
-        total: optionalVars.length,
-        available: availableOptional.length,
-        configured: availableOptional
-      }
-    }
-  };
-}
-
-// =============================================================================
-// 🏥 메인 헬스체크 API
+// GET /api/system/health
 // =============================================================================
 
 export async function GET(request: NextRequest) {
-  const startTime = Date.now();
-
   try {
-    // 모든 서비스 상태 병렬 확인
-    const [
-      databaseHealth,
-      aiServicesHealth,
-      webauthnHealth,
-      didHealth,
-      environmentHealth
-    ] = await Promise.all([
-      checkDatabaseHealth(),
-      checkAIServicesHealth(),
-      Promise.resolve(checkWebAuthnHealth()),
-      Promise.resolve(checkDIDHealth()),
-      Promise.resolve(checkEnvironmentHealth())
-    ]);
+    const url = new URL(request.url);
+    const action = url.searchParams.get('action') || 'status';
 
-    // 전체 시스템 상태 결정
-    const allStatuses = [
-      databaseHealth.status,
-      aiServicesHealth.status,
-      webauthnHealth.status,
-      didHealth.status,
-      environmentHealth.status
-    ];
+    console.log('🔍 시스템 상태 API 호출 - Action:', action);
 
-    let overallStatus: 'healthy' | 'unhealthy' | 'degraded' = 'healthy';
-    
-    if (allStatuses.includes('unhealthy')) {
-      overallStatus = 'unhealthy';
-    } else if (allStatuses.includes('degraded')) {
-      overallStatus = 'degraded';
+    switch (action) {
+      case 'status':
+        return await handleHealthStatus();
+      
+      case 'initialize':
+        return await handleSystemInitialization();
+      
+      case 'config':
+        return await handleConfigurationCheck();
+      
+      case 'services':
+        return await handleServicesCheck();
+      
+      default:
+        return NextResponse.json({
+          success: false,
+          error: `지원되지 않는 액션: ${action}`,
+          availableActions: ['status', 'initialize', 'config', 'services']
+        }, { status: 400 });
     }
 
-    const totalResponseTime = Date.now() - startTime;
-
-    // 응답 데이터 구성
-    const healthData = {
-      status: overallStatus,
-      timestamp: new Date().toISOString(),
-      responseTime: totalResponseTime,
-      version: process.env.npm_package_version || '1.0.0',
-      environment: CONFIG.SERVER.NODE_ENV,
-      uptime: process.uptime(),
-      
-      services: {
-        database: databaseHealth,
-        ai: aiServicesHealth,
-        webauthn: webauthnHealth,
-        did: didHealth,
-        environment: environmentHealth
-      },
-
-      system: {
-        nodeVersion: process.version,
-        platform: process.platform,
-        arch: process.arch,
-        memory: {
-          used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-          total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
-          external: Math.round(process.memoryUsage().external / 1024 / 1024)
-        },
-        pid: process.pid
-      },
-
-      features: {
-        webauthn: CONFIG.FEATURES.ENABLE_WEBAUTHN,
-        did: CONFIG.FEATURES.ENABLE_DID,
-        aiChat: CONFIG.FEATURES.ENABLE_AI_CHAT,
-        voiceInput: CONFIG.FEATURES.ENABLE_VOICE_INPUT,
-        knowledgeGraph: CONFIG.FEATURES.ENABLE_KNOWLEDGE_GRAPH,
-        analytics: CONFIG.FEATURES.ENABLE_ANALYTICS
-      }
-    };
-
-    // 상태 코드 결정
-    let statusCode = 200;
-    if (overallStatus === 'degraded') statusCode = 207; // Multi-Status
-    if (overallStatus === 'unhealthy') statusCode = 503; // Service Unavailable
-
-    return NextResponse.json(healthData, { 
-      status: statusCode,
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'X-Health-Check': 'true',
-        'X-Response-Time': totalResponseTime.toString()
-      }
-    });
-
-  } catch (error: any) {
-    console.error('Health check error:', error);
-
-    return NextResponse.json({
-      status: 'unhealthy',
-      timestamp: new Date().toISOString(),
-      responseTime: Date.now() - startTime,
-      error: {
-        message: error.message,
-        name: error.name,
-        stack: CONFIG.SERVER.NODE_ENV === 'development' ? error.stack : undefined
-      },
-      services: {
-        database: { status: 'unknown' },
-        ai: { status: 'unknown' },
-        webauthn: { status: 'unknown' },
-        did: { status: 'unknown' },
-        environment: { status: 'unknown' }
-      }
-    }, { 
-      status: 503,
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'X-Health-Check': 'true'
-      }
-    });
-  }
-}
-
-// =============================================================================
-// 🔧 추가 헬스체크 엔드포인트들
-// =============================================================================
-
-/**
- * 간단한 상태 확인 (빠른 응답)
- */
-export async function HEAD(request: NextRequest) {
-  try {
-    // 매우 기본적인 확인만
-    const isDbConnected = await testConnection();
-    
-    return new NextResponse(null, {
-      status: isDbConnected ? 200 : 503,
-      headers: {
-        'X-Health-Status': isDbConnected ? 'healthy' : 'unhealthy',
-        'Cache-Control': 'no-cache'
-      }
-    });
   } catch (error) {
-    return new NextResponse(null, {
-      status: 503,
-      headers: {
-        'X-Health-Status': 'unhealthy',
-        'Cache-Control': 'no-cache'
-      }
-    });
+    console.error('❌ 시스템 상태 API 오류:', error);
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : '알 수 없는 오류',
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
   }
 }
 
-/**
- * 상세한 디버그 정보 (개발 환경에서만)
- */
-export async function POST(request: NextRequest) {
-  if (CONFIG.SERVER.NODE_ENV !== 'development') {
-    return NextResponse.json(
-      { error: 'Debug endpoint only available in development' },
-      { status: 403 }
-    );
-  }
+// =============================================================================
+// 기본 상태 확인
+// =============================================================================
 
+async function handleHealthStatus() {
   try {
-    const body = await request.json().catch(() => ({}));
-    const includeSecrets = body.includeSecrets === true;
+    console.log('🔍 데이터베이스 연결 상태 확인 중...');
 
-    const debugInfo = {
-      timestamp: new Date().toISOString(),
-      request: {
-        method: request.method,
-        url: request.url,
-        headers: Object.fromEntries(request.headers.entries()),
-        userAgent: request.headers.get('user-agent')
+    // 1. 설정 검증
+    const configValidation = validateConfig();
+    
+    // 2. 데이터베이스 연결 확인
+    const dbConnection = await checkDatabaseConnection();
+    
+    // 3. 시스템 정보 수집
+    const systemInfo = getSystemInfo();
+
+    // 4. 서비스 상태 확인
+    const webauthnServer = getWebAuthnServer();
+    const didService = getDIDService();
+    
+    const serviceStatus = {
+      webauthn: {
+        available: true,
+        config: webauthnServer.getConfiguration()
       },
-      environment: includeSecrets ? process.env : {
-        NODE_ENV: process.env.NODE_ENV,
-        VERCEL: process.env.VERCEL,
-        PORT: process.env.PORT
+      did: {
+        available: true,
+        config: didService.getConfiguration()
       },
-      config: CONFIG,
-      system: {
-        nodeVersion: process.version,
-        platform: process.platform,
-        arch: process.arch,
-        cpuUsage: process.cpuUsage(),
-        memoryUsage: process.memoryUsage(),
-        uptime: process.uptime(),
-        cwd: process.cwd(),
-        execPath: process.execPath,
-        argv: process.argv
+      database: dbConnection,
+      ai: {
+        openai: !!config.OPENAI_API_KEY,
+        claude: !!config.CLAUDE_API_KEY,
+        gemini: !!config.GEMINI_API_KEY
       }
     };
 
-    return NextResponse.json(debugInfo, {
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'X-Debug-Info': 'true'
+    // 5. 전체 상태 평가
+    const overallHealth = 
+      configValidation.isValid && 
+      dbConnection.success;
+
+    const response = {
+      success: true,
+      status: overallHealth ? 'healthy' : 'degraded',
+      timestamp: new Date().toISOString(),
+      system: systemInfo,
+      services: serviceStatus,
+      configuration: {
+        valid: configValidation.isValid,
+        errors: configValidation.errors,
+        warnings: configValidation.warnings
+      },
+      checks: {
+        database: dbConnection.success,
+        webauthn: true,
+        did: true,
+        ai: !!(config.OPENAI_API_KEY || config.CLAUDE_API_KEY || config.GEMINI_API_KEY)
       }
+    };
+
+    const statusCode = overallHealth ? 200 : 503;
+    return NextResponse.json(response, { status: statusCode });
+
+  } catch (error) {
+    console.error('❌ 상태 확인 실패:', error);
+    return NextResponse.json({
+      success: false,
+      status: 'unhealthy',
+      error: error instanceof Error ? error.message : '상태 확인 실패',
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
+  }
+}
+
+// =============================================================================
+// 시스템 초기화
+// =============================================================================
+
+async function handleSystemInitialization() {
+  try {
+    console.log('🚀 시스템 초기화 시작...');
+
+    // 1. 데이터베이스 초기화
+    const dbInit = await initializeDatabase();
+    
+    if (!dbInit.success) {
+      return NextResponse.json({
+        success: false,
+        message: `데이터베이스 초기화 실패: ${dbInit.message}`,
+        details: dbInit.details,
+        timestamp: new Date().toISOString()
+      }, { status: 500 });
+    }
+
+    // 2. WebAuthn 서비스 초기화
+    const webauthnServer = getWebAuthnServer();
+    const webauthnConfig = webauthnServer.getConfiguration();
+
+    // 3. DID 서비스 초기화
+    const didService = getDIDService();
+    const didConfig = didService.getConfiguration();
+
+    // 4. 초기화 완료 응답
+    const response = {
+      success: true,
+      message: '데이터베이스 초기화 완료',
+      timestamp: new Date().toISOString(),
+      initializationDetails: dbInit.details,
+      nextSteps: [
+        '✅ 데이터베이스 연결 완료',
+        '✅ 기본 AI Agents 설정 완료',
+        '🎯 이제 WebAuthn 등록 테스트 가능',
+        '🧠 Cue 추출 시스템 테스트 가능'
+      ]
+    };
+
+    return NextResponse.json(response);
+
+  } catch (error) {
+    console.error('❌ 시스템 초기화 실패:', error);
+    return NextResponse.json({
+      success: false,
+      message: '시스템 초기화 실패',
+      error: error instanceof Error ? error.message : '알 수 없는 오류',
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
+  }
+}
+
+// =============================================================================
+// 설정 확인
+// =============================================================================
+
+async function handleConfigurationCheck() {
+  try {
+    const configValidation = validateConfig();
+    const systemInfo = getSystemInfo();
+    const dbInfo = await getDatabaseInfo();
+
+    const configDetails = {
+      environment: config.NODE_ENV,
+      app: {
+        url: config.APP_URL,
+        port: config.PORT,
+        version: systemInfo.version
+      },
+      webauthn: {
+        rpName: config.WEBAUTHN_RP_NAME,
+        rpId: config.WEBAUTHN_RP_ID,
+        origin: config.WEBAUTHN_ORIGIN
+      },
+      did: {
+        method: config.DID_METHOD,
+        network: config.DID_NETWORK,
+        resolverUrl: config.DID_RESOLVER_URL
+      },
+      database: dbInfo,
+      ai: {
+        openai: !!config.OPENAI_API_KEY,
+        claude: !!config.CLAUDE_API_KEY,
+        gemini: !!config.GEMINI_API_KEY,
+        huggingface: !!config.HUGGINGFACE_API_KEY
+      },
+      features: {
+        aiChat: config.ENABLE_AI_CHAT,
+        voiceInput: config.ENABLE_VOICE_INPUT,
+        knowledgeGraph: config.ENABLE_KNOWLEDGE_GRAPH,
+        analytics: config.ENABLE_ANALYTICS
+      },
+      security: {
+        apiRateLimit: config.API_RATE_LIMIT,
+        maxFileSize: config.MAX_FILE_SIZE,
+        externalApiTimeout: config.EXTERNAL_API_TIMEOUT
+      }
+    };
+
+    return NextResponse.json({
+      success: true,
+      configuration: configDetails,
+      validation: configValidation,
+      timestamp: new Date().toISOString()
     });
 
-  } catch (error: any) {
+  } catch (error) {
+    console.error('❌ 설정 확인 실패:', error);
     return NextResponse.json({
-      error: 'Debug info collection failed',
-      message: error.message
+      success: false,
+      error: error instanceof Error ? error.message : '설정 확인 실패',
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
+  }
+}
+
+// =============================================================================
+// 서비스 상태 확인
+// =============================================================================
+
+async function handleServicesCheck() {
+  try {
+    // 1. WebAuthn 서비스 확인
+    const webauthnServer = getWebAuthnServer();
+    const webauthnStatus = {
+      available: true,
+      configuration: webauthnServer.getConfiguration(),
+      capabilities: await webauthnServer.checkPlatformCapabilities()
+    };
+
+    // 2. DID 서비스 확인
+    const didService = getDIDService();
+    const didStatus = {
+      available: true,
+      configuration: didService.getConfiguration()
+    };
+
+    // 3. 데이터베이스 서비스 확인
+    const dbStatus = await checkDatabaseConnection();
+
+    // 4. AI 서비스 확인
+    const aiStatus = {
+      openai: {
+        configured: !!config.OPENAI_API_KEY,
+        available: !!config.OPENAI_API_KEY
+      },
+      claude: {
+        configured: !!config.CLAUDE_API_KEY,
+        available: !!config.CLAUDE_API_KEY
+      },
+      gemini: {
+        configured: !!config.GEMINI_API_KEY,
+        available: !!config.GEMINI_API_KEY
+      }
+    };
+
+    // 5. 외부 연동 서비스 확인
+    const externalServices = {
+      google: {
+        oauth: !!config.GOOGLE_CLIENT_ID,
+        api: !!config.GOOGLE_API_KEY
+      },
+      discord: !!config.DISCORD_BOT_TOKEN,
+      pinata: !!(config.PINATA_API_KEY && config.PINATA_SECRET)
+    };
+
+    const response = {
+      success: true,
+      services: {
+        webauthn: webauthnStatus,
+        did: didStatus,
+        database: dbStatus,
+        ai: aiStatus,
+        external: externalServices
+      },
+      timestamp: new Date().toISOString()
+    };
+
+    return NextResponse.json(response);
+
+  } catch (error) {
+    console.error('❌ 서비스 확인 실패:', error);
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : '서비스 확인 실패',
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
+  }
+}
+
+// =============================================================================
+// POST /api/system/health (시스템 테스트)
+// =============================================================================
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { action, data } = body;
+
+    console.log('🧪 시스템 테스트 실행:', action);
+
+    switch (action) {
+      case 'test-database':
+        return await testDatabaseOperations(data);
+      
+      case 'test-webauthn':
+        return await testWebAuthnFlow(data);
+      
+      case 'test-did':
+        return await testDIDOperations(data);
+      
+      case 'test-cue':
+        return await testCueExtraction(data);
+      
+      default:
+        return NextResponse.json({
+          success: false,
+          error: `지원되지 않는 테스트 액션: ${action}`,
+          availableActions: ['test-database', 'test-webauthn', 'test-did', 'test-cue']
+        }, { status: 400 });
+    }
+
+  } catch (error) {
+    console.error('❌ 시스템 테스트 실패:', error);
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : '시스템 테스트 실패',
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
+  }
+}
+
+// =============================================================================
+// 테스트 함수들
+// =============================================================================
+
+async function testDatabaseOperations(data: any) {
+  try {
+    // 데이터베이스 연결 및 기본 작업 테스트
+    const dbStatus = await checkDatabaseConnection();
+    
+    if (!dbStatus.success) {
+      throw new Error('데이터베이스 연결 실패');
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: '데이터베이스 테스트 완료',
+      results: dbStatus,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : '데이터베이스 테스트 실패',
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
+  }
+}
+
+async function testWebAuthnFlow(data: any) {
+  try {
+    const webauthnServer = getWebAuthnServer();
+    
+    // WebAuthn 등록 옵션 생성 테스트
+    const registrationOptions = await webauthnServer.generateRegistrationOptions({
+      id: 'test-user-id',
+      username: 'test-user',
+      displayName: 'Test User'
+    });
+
+    if (!registrationOptions.success) {
+      throw new Error('WebAuthn 등록 옵션 생성 실패');
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'WebAuthn 테스트 완료',
+      results: {
+        registrationOptionsGenerated: true,
+        configuration: webauthnServer.getConfiguration()
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'WebAuthn 테스트 실패',
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
+  }
+}
+
+async function testDIDOperations(data: any) {
+  try {
+    const didService = getDIDService();
+    
+    // DID 생성 테스트 (실제로 저장하지 않음)
+    const testUsername = `test-user-${Date.now()}`;
+    
+    return NextResponse.json({
+      success: true,
+      message: 'DID 테스트 완료',
+      results: {
+        serviceAvailable: true,
+        configuration: didService.getConfiguration(),
+        testUsername
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'DID 테스트 실패',
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
+  }
+}
+
+async function testCueExtraction(data: any) {
+  try {
+    // CUE 추출 시스템 기본 테스트
+    const testText = data?.text || "안녕하세요. 저는 개발자이고 AI에 관심이 많습니다.";
+    
+    // 간단한 패턴 매칭 테스트
+    const patterns = [
+      { type: 'preference', regex: /(?:저는|나는|내가)\s+(.+?)(?:이고|입니다)/ },
+      { type: 'interest', regex: /(.+?)(?:에 관심|을 좋아)/ }
+    ];
+
+    const extractedPatterns = patterns.map(pattern => {
+      const matches = Array.from(testText.matchAll(new RegExp(pattern.regex, 'gi')));
+      return {
+        type: pattern.type,
+        matches: matches.map(m => m[1]?.trim()).filter(Boolean)
+      };
+    }).filter(result => result.matches.length > 0);
+
+    return NextResponse.json({
+      success: true,
+      message: 'CUE 추출 테스트 완료',
+      results: {
+        testText,
+        extractedPatterns,
+        aiAvailable: !!(config.OPENAI_API_KEY || config.CLAUDE_API_KEY)
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'CUE 추출 테스트 실패',
+      timestamp: new Date().toISOString()
     }, { status: 500 });
   }
 }

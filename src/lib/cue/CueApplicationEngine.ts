@@ -1,591 +1,598 @@
 // =============================================================================
-// 🎯 Cue 적용 엔진 - AI 응답 개인화의 핵심
-// src/lib/cue/CueApplicationEngine.ts
-// 추출된 개인화 큐를 실제 AI 상호작용에 적용하여 맞춤형 응답 생성
+// 🧠 개선된 CUE 추출 엔진
+// 파일: src/lib/cue/CueExtractor.ts
 // =============================================================================
 
 import { 
-  PersonalCue, 
-  CueUsageHistory, 
-  CueAwareAgent, 
+  CueExtractionResult, 
   CueContext,
-  CueType 
+  CuePattern,
+  CueType,
+  ExtractedCue,
+  CueConfidence,
+  PersonalCue
 } from '@/types/cue';
 
-export interface ApplicationContext {
-  userQuery: string;
-  platform: string;
-  conversationId?: string;
-  timeOfDay: 'morning' | 'afternoon' | 'evening';
-  contextTags: string[];
-  urgency: 'low' | 'medium' | 'high';
-  taskType: 'learning' | 'problem_solving' | 'creation' | 'general';
-  metadata?: Record<string, any>;
-}
+import { supabase } from '@/lib/database/supabase';
+import config from '@/lib/config';
 
-export interface CueApplication {
-  cueId: string;
-  cue: PersonalCue;
-  applicationMethod: 'automatic' | 'suggested' | 'manual';
-  confidence: number;
-  reasoning: string;
-  modification: string; // 실제로 적용될 수정 사항
-  priority: number;
-}
+// =============================================================================
+// 핵심 CUE 추출 클래스
+// =============================================================================
 
-export interface ApplicationResult {
-  originalQuery: string;
-  modifiedQuery: string;
-  appliedCues: CueApplication[];
-  systemPromptAdditions: string[];
-  responseGuidelines: string[];
-  confidenceScore: number;
-  applicationReasoning: string;
-  estimatedImprovement: number; // 0.0 ~ 1.0
-}
+export class CueExtractor {
+  private userId: string;
+  private aiModels: string[];
 
-export class CueApplicationEngine {
-  private cueDatabase: Map<string, PersonalCue[]>;
-  private usageHistory: CueUsageHistory[];
-  private contextAnalyzer: ApplicationContextAnalyzer;
-
-  constructor() {
-    this.cueDatabase = new Map();
-    this.usageHistory = [];
-    this.contextAnalyzer = new ApplicationContextAnalyzer();
+  constructor(userId: string, aiModels: string[] = ['gpt-4', 'claude-3']) {
+    this.userId = userId;
+    this.aiModels = aiModels;
   }
 
   // =============================================================================
-  // 🎯 메인 적용 메서드 - 쿼리에 Cue 적용
+  // 메인 추출 메소드
   // =============================================================================
 
-  async applyCuesToQuery(
-    userDid: string,
-    context: ApplicationContext,
-    availableCues?: PersonalCue[]
-  ): Promise<ApplicationResult> {
-    
+  async extractCues(
+    input: string, 
+    context: CueContext,
+    options: {
+      minConfidence?: number;
+      maxCues?: number;
+      enableAI?: boolean;
+      enablePatternMatching?: boolean;
+    } = {}
+  ): Promise<CueExtractionResult> {
     try {
-      // 1. 관련 큐 가져오기
-      const relevantCues = availableCues || await this.getRelevantCues(userDid, context);
-      
-      // 2. 컨텍스트 분석
-      const contextAnalysis = this.contextAnalyzer.analyzeContext(context);
-      
-      // 3. 큐 필터링 및 랭킹
-      const rankedCues = this.rankCuesByRelevance(relevantCues, context, contextAnalysis);
-      
-      // 4. 적용할 큐 선택
-      const selectedCues = this.selectCuesForApplication(rankedCues, context);
-      
-      // 5. 쿼리 및 시스템 프롬프트 수정
-      const applicationResult = this.buildApplicationResult(context, selectedCues);
-      
-      // 6. 사용 이력 기록
-      await this.recordUsage(userDid, selectedCues, context, applicationResult);
-      
-      return applicationResult;
-      
+      console.log('🧠 CUE 추출 시작:', { userId: this.userId, inputLength: input.length });
+
+      const {
+        minConfidence = 0.6,
+        maxCues = 10,
+        enableAI = true,
+        enablePatternMatching = true
+      } = options;
+
+      const extractedCues: ExtractedCue[] = [];
+      const processingMetadata: Record<string, unknown> = {
+        startTime: Date.now(),
+        methods: [],
+        models: []
+      };
+
+      // 1. 기본 패턴 매칭으로 CUE 추출
+      if (enablePatternMatching) {
+        const patternCues = await this.extractByPatterns(input, context);
+        extractedCues.push(...patternCues);
+        processingMetadata.methods.push('pattern_matching');
+        console.log(`🎯 패턴 매칭으로 ${patternCues.length}개 CUE 추출됨`);
+      }
+
+      // 2. AI 모델로 고급 CUE 추출
+      if (enableAI && config.OPENAI_API_KEY) {
+        const aiCues = await this.extractByAI(input, context);
+        extractedCues.push(...aiCues);
+        processingMetadata.methods.push('ai_extraction');
+        processingMetadata.models.push(...this.aiModels);
+        console.log(`🤖 AI 추출로 ${aiCues.length}개 CUE 추출됨`);
+      }
+
+      // 3. 컨텍스트 기반 필터링
+      const contextFilteredCues = this.filterByContext(extractedCues, context);
+      console.log(`🔍 컨텍스트 필터링 후 ${contextFilteredCues.length}개 CUE 남음`);
+
+      // 4. 신뢰도 기반 필터링
+      const confidenceFilteredCues = contextFilteredCues
+        .filter(cue => cue.confidence >= minConfidence)
+        .sort((a, b) => b.confidence - a.confidence)
+        .slice(0, maxCues);
+
+      console.log(`✅ 최종 ${confidenceFilteredCues.length}개 CUE 선택됨`);
+
+      // 5. 데이터베이스에 저장
+      const savedCues = await this.saveCuesToDatabase(confidenceFilteredCues, context, processingMetadata);
+
+      const result: CueExtractionResult = {
+        success: true,
+        cues: savedCues,
+        totalExtracted: extractedCues.length,
+        finalCount: confidenceFilteredCues.length,
+        processingTime: Date.now() - (processingMetadata.startTime as number),
+        metadata: processingMetadata,
+        context
+      };
+
+      return result;
+
     } catch (error) {
-      console.error('Cue application failed:', error);
-      
-      // 실패 시 원본 쿼리 반환
+      console.error('❌ CUE 추출 실패:', error);
       return {
-        originalQuery: context.userQuery,
-        modifiedQuery: context.userQuery,
-        appliedCues: [],
-        systemPromptAdditions: [],
-        responseGuidelines: [],
-        confidenceScore: 0,
-        applicationReasoning: `Application failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        estimatedImprovement: 0
+        success: false,
+        cues: [],
+        totalExtracted: 0,
+        finalCount: 0,
+        processingTime: 0,
+        error: error instanceof Error ? error.message : '알 수 없는 오류',
+        context
       };
     }
   }
 
   // =============================================================================
-  // 🔍 관련 큐 검색 및 필터링
+  // 패턴 기반 CUE 추출
   // =============================================================================
 
-  private async getRelevantCues(
-    userDid: string, 
-    context: ApplicationContext
-  ): Promise<PersonalCue[]> {
-    // 실제 구현에서는 데이터베이스 쿼리
-    const allCues = this.cueDatabase.get(userDid) || [];
-    
-    return allCues.filter(cue => {
-      // 활성 상태 확인
-      if (!cue.isActive) return false;
-      
-      // 신뢰도 임계값 확인
-      if (cue.confidenceScore < 0.3) return false;
-      
-      // 컨텍스트 적용 가능성 확인
-      if (cue.applicableContexts.length > 0) {
-        const hasMatchingContext = cue.applicableContexts.some(ctx => 
-          ctx === context.platform || 
-          context.contextTags.includes(ctx)
-        );
-        if (!hasMatchingContext) return false;
+  private async extractByPatterns(input: string, context: CueContext): Promise<ExtractedCue[]> {
+    const patterns: CuePattern[] = [
+      // 선호도 패턴들
+      {
+        type: 'preference',
+        regex: /(?:저는|나는|내가)\s+(.+?)(?:을|를)\s+(?:좋아해|선호해|즐겨)/gi,
+        confidenceBoost: 0.8,
+        description: '개인 선호도 표현'
+      },
+      {
+        type: 'preference', 
+        regex: /(?:저는|나는|내가)\s+(.+?)(?:을|를)\s+(?:싫어해|별로|안 좋아해)/gi,
+        confidenceBoost: 0.7,
+        description: '개인 비선호도 표현'
+      },
+
+      // 의도 패턴들
+      {
+        type: 'intent',
+        regex: /(?:저는|나는|내가)\s+(.+?)(?:하고 싶어|할 예정|할 계획)/gi,
+        confidenceBoost: 0.9,
+        description: '의도 및 계획 표현'
+      },
+      {
+        type: 'intent',
+        regex: /(?:도움|도와|알려|설명|분석|생성)(?:줘|달라|해줘|해주세요)/gi,
+        confidenceBoost: 0.8,
+        description: '도움 요청 의도'
+      },
+
+      // 컨텍스트 패턴들
+      {
+        type: 'context',
+        regex: /(?:요즘|최근에|지금|현재)\s+(.+?)(?:하고 있어|중이야|상황)/gi,
+        confidenceBoost: 0.7,
+        description: '현재 상황 컨텍스트'
+      },
+      {
+        type: 'context',
+        regex: /(?:회사에서|직장에서|업무상|프로젝트에서)\s+(.+)/gi,
+        confidenceBoost: 0.8,
+        description: '업무 컨텍스트'
+      },
+
+      // 지식 패턴들
+      {
+        type: 'knowledge',
+        regex: /(?:알고 있는|배운|경험한|해본)\s+(.+?)(?:이야|있어|적이)/gi,
+        confidenceBoost: 0.6,
+        description: '기존 지식 및 경험'
+      },
+      {
+        type: 'knowledge',
+        regex: /(?:전문가|전문적|숙련된|능숙한)\s+(.+?)(?:분야|영역|기술)/gi,
+        confidenceBoost: 0.9,
+        description: '전문 지식 영역'
+      },
+
+      // 행동 패턴들
+      {
+        type: 'behavior',
+        regex: /(?:항상|자주|보통|때때로|가끔)\s+(.+?)(?:해|한다|하곤)/gi,
+        confidenceBoost: 0.7,
+        description: '행동 패턴'
+      },
+      {
+        type: 'behavior',
+        regex: /(?:습관적으로|매일|주로|대부분)\s+(.+)/gi,
+        confidenceBoost: 0.8,
+        description: '습관적 행동'
+      },
+
+      // 감정 및 상태 패턴들
+      {
+        type: 'emotion',
+        regex: /(?:기분이|느낌이|마음이)\s+(.+?)(?:해|다|네)/gi,
+        confidenceBoost: 0.6,
+        description: '감정 상태'
+      },
+      {
+        type: 'emotion',
+        regex: /(?:스트레스|압박감|부담|걱정|불안)\s*(?:받고|느끼고|있어)/gi,
+        confidenceBoost: 0.7,
+        description: '스트레스 및 부정적 감정'
       }
+    ];
+
+    const extractedCues: ExtractedCue[] = [];
+
+    for (const pattern of patterns) {
+      const matches = Array.from(input.matchAll(pattern.regex));
       
-      // 시간 기반 필터링 (decay 적용)
-      const daysSinceLastReinforced = (Date.now() - cue.lastReinforced.getTime()) / (1000 * 60 * 60 * 24);
-      const decayedConfidence = cue.confidenceScore * Math.exp(-cue.decayRate * daysSinceLastReinforced);
-      
-      return decayedConfidence >= 0.2;
-    });
+      for (const match of matches) {
+        const extractedText = match[1]?.trim() || match[0].trim();
+        
+        if (extractedText && extractedText.length > 2) {
+          const confidence = this.calculatePatternConfidence(pattern, match, context);
+          
+          extractedCues.push({
+            type: pattern.type as CueType,
+            content: extractedText,
+            originalText: match[0],
+            confidence,
+            source: 'pattern_matching',
+            context: {
+              ...context,
+              patternUsed: pattern.description,
+              matchPosition: match.index
+            },
+            extractedAt: new Date(),
+            metadata: {
+              pattern: pattern.description,
+              regex: pattern.regex.source,
+              confidenceBoost: pattern.confidenceBoost
+            }
+          });
+        }
+      }
+    }
+
+    // 중복 제거
+    return this.deduplicateCues(extractedCues);
   }
 
   // =============================================================================
-  // 📊 큐 관련성 순위 매기기
+  // AI 기반 CUE 추출
   // =============================================================================
 
-  private rankCuesByRelevance(
-    cues: PersonalCue[],
-    context: ApplicationContext,
-    contextAnalysis: any
-  ): CueApplication[] {
-    const applications: CueApplication[] = [];
+  private async extractByAI(input: string, context: CueContext): Promise<ExtractedCue[]> {
+    if (!config.OPENAI_API_KEY) {
+      console.log('⚠️ OpenAI API 키가 없어 AI 추출을 건너뜁니다');
+      return [];
+    }
+
+    try {
+      // AI 프롬프트 구성
+      const systemPrompt = `당신은 대화에서 개인화된 CUE(단서)를 추출하는 전문가입니다.
+
+사용자의 텍스트에서 다음 5가지 유형의 CUE를 추출하세요:
+1. preference (선호도): 좋아하는 것, 싫어하는 것, 취향
+2. intent (의도): 하고 싶은 것, 목표, 계획
+3. context (컨텍스트): 현재 상황, 환경, 배경
+4. knowledge (지식): 알고 있는 것, 경험, 전문성
+5. behavior (행동): 습관, 패턴, 루틴
+
+각 CUE에 대해 다음 JSON 형식으로 응답하세요:
+{
+  "cues": [
+    {
+      "type": "preference|intent|context|knowledge|behavior",
+      "content": "추출된 CUE 내용",
+      "confidence": 0.0-1.0,
+      "explanation": "추출 근거 설명"
+    }
+  ]
+}
+
+신뢰도는 다음 기준으로 설정하세요:
+- 0.9-1.0: 매우 명확하고 확실한 CUE
+- 0.7-0.9: 명확한 CUE
+- 0.5-0.7: 추론 가능한 CUE
+- 0.3-0.5: 불확실하지만 가능성 있는 CUE
+- 0.0-0.3: 매우 불확실한 CUE`;
+
+      const userPrompt = `다음 텍스트에서 개인화된 CUE를 추출해주세요:
+
+컨텍스트: ${JSON.stringify(context)}
+텍스트: "${input}"
+
+오직 JSON 형식으로만 응답하세요.`;
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.3,
+          max_tokens: 2000
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenAI API 오류: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const aiResponse = data.choices[0]?.message?.content;
+
+      if (!aiResponse) {
+        throw new Error('AI 응답이 비어있습니다');
+      }
+
+      // JSON 파싱
+      const parsedResponse = JSON.parse(aiResponse);
+      const aiCues: ExtractedCue[] = parsedResponse.cues.map((cue: any) => ({
+        type: cue.type as CueType,
+        content: cue.content,
+        originalText: input,
+        confidence: Math.max(0, Math.min(1, cue.confidence)),
+        source: 'ai_extraction',
+        context: {
+          ...context,
+          aiModel: 'gpt-4',
+          aiExplanation: cue.explanation
+        },
+        extractedAt: new Date(),
+        metadata: {
+          aiModel: 'gpt-4',
+          explanation: cue.explanation,
+          rawResponse: aiResponse
+        }
+      }));
+
+      console.log(`🤖 AI로 ${aiCues.length}개 CUE 추출됨`);
+      return aiCues;
+
+    } catch (error) {
+      console.error('❌ AI CUE 추출 실패:', error);
+      return [];
+    }
+  }
+
+  // =============================================================================
+  // 유틸리티 메소드들
+  // =============================================================================
+
+  private calculatePatternConfidence(
+    pattern: CuePattern, 
+    match: RegExpMatchArray, 
+    context: CueContext
+  ): number {
+    let confidence = pattern.confidenceBoost;
+
+    // 컨텍스트 부스트
+    if (context.platform === 'chat' && pattern.type === 'intent') {
+      confidence += 0.1;
+    }
+
+    // 텍스트 길이 기반 조정
+    const extractedText = match[1] || match[0];
+    if (extractedText.length < 5) {
+      confidence -= 0.2;
+    } else if (extractedText.length > 50) {
+      confidence -= 0.1;
+    }
+
+    // 특수 키워드 부스트
+    const boostKeywords = ['항상', '자주', '매일', '매번', '절대', '정말', '진짜'];
+    if (boostKeywords.some(keyword => extractedText.includes(keyword))) {
+      confidence += 0.1;
+    }
+
+    return Math.max(0, Math.min(1, confidence));
+  }
+
+  private filterByContext(cues: ExtractedCue[], context: CueContext): ExtractedCue[] {
+    return cues.filter(cue => {
+      // 플랫폼별 필터링
+      if (context.platform === 'email' && cue.type === 'emotion') {
+        return cue.confidence > 0.7; // 이메일에서 감정 CUE는 더 높은 신뢰도 요구
+      }
+
+      // 컨텍스트 관련성 확인
+      if (context.domain && !this.isRelevantToDomain(cue, context.domain)) {
+        return false;
+      }
+
+      return true;
+    });
+  }
+
+  private isRelevantToDomain(cue: ExtractedCue, domain: string): boolean {
+    const domainKeywords: Record<string, string[]> = {
+      'business': ['업무', '프로젝트', '회의', '고객', '매출', '계약'],
+      'personal': ['개인', '취미', '가족', '친구', '휴가', '건강'],
+      'technical': ['개발', '코딩', '시스템', '데이터', '알고리즘', '프로그래밍']
+    };
+
+    const keywords = domainKeywords[domain] || [];
+    return keywords.some(keyword => 
+      cue.content.includes(keyword) || cue.originalText.includes(keyword)
+    );
+  }
+
+  private deduplicateCues(cues: ExtractedCue[]): ExtractedCue[] {
+    const uniqueCues: ExtractedCue[] = [];
+    const seenContents = new Set<string>();
 
     for (const cue of cues) {
-      const relevanceScore = this.calculateRelevanceScore(cue, context, contextAnalysis);
+      const normalizedContent = cue.content.toLowerCase().trim();
       
-      if (relevanceScore > 0.3) {
-        applications.push({
-          cueId: cue.id,
-          cue,
-          applicationMethod: this.determineApplicationMethod(cue, relevanceScore),
-          confidence: relevanceScore,
-          reasoning: this.generateApplicationReasoning(cue, context, relevanceScore),
-          modification: this.generateModification(cue, context),
-          priority: Math.round(relevanceScore * 10)
-        });
-      }
-    }
-
-    // 신뢰도와 우선순위로 정렬
-    return applications.sort((a, b) => {
-      if (a.priority !== b.priority) return b.priority - a.priority;
-      return b.confidence - a.confidence;
-    });
-  }
-
-  // =============================================================================
-  // 🧮 관련성 점수 계산 (핵심 알고리즘!)
-  // =============================================================================
-
-  private calculateRelevanceScore(
-    cue: PersonalCue,
-    context: ApplicationContext,
-    contextAnalysis: any
-  ): number {
-    let score = cue.confidenceScore; // 기본 신뢰도로 시작
-
-    // 1. 큐 타입별 가중치
-    const typeWeights = {
-      preference: 0.9,    // 선호도는 항상 중요
-      goal: 0.8,         // 목표도 중요
-      expertise: 0.7,    // 전문성 관련
-      communication: 0.6, // 커뮤니케이션 스타일
-      workflow: 0.5,     // 워크플로우
-      context: 0.4,      // 컨텍스트
-      behavior: 0.3      // 행동 패턴
-    };
-    score *= typeWeights[cue.cueType] || 0.5;
-
-    // 2. 컨텍스트 일치도
-    if (cue.applicableContexts.includes(context.platform)) {
-      score *= 1.2;
-    }
-
-    // 3. 시간대 패턴 매칭
-    if (cue.key === 'active_time' && cue.value === context.timeOfDay) {
-      score *= 1.15;
-    }
-
-    // 4. 작업 타입 매칭
-    if (cue.cueType === 'goal' && cue.value === context.taskType) {
-      score *= 1.3;
-    }
-
-    // 5. 사용 빈도 가중치
-    score *= Math.min(1.2, 1 + (cue.usageFrequency / 10));
-
-    // 6. 최근 사용 이력
-    if (cue.lastUsed) {
-      const daysSinceLastUse = (Date.now() - cue.lastUsed.getTime()) / (1000 * 60 * 60 * 24);
-      if (daysSinceLastUse < 7) {
-        score *= 1.1; // 최근 사용된 큐는 약간 높은 점수
-      }
-    }
-
-    // 7. 컨텍스트 특이성
-    if (cue.contextSpecificity === 'task_specific' && this.isTaskSpecificMatch(cue, context)) {
-      score *= 1.25;
-    } else if (cue.contextSpecificity === 'general') {
-      score *= 1.05; // 일반적인 큐는 약간의 보너스
-    }
-
-    // 8. 키워드 매칭
-    const keywordMatch = this.calculateKeywordMatch(cue, context.userQuery);
-    score *= (1 + keywordMatch * 0.3);
-
-    // 9. 우선순위 적용
-    score *= (cue.priority / 10);
-
-    return Math.min(1.0, Math.max(0.0, score));
-  }
-
-  // =============================================================================
-  // 🎯 큐 적용 방식 결정
-  // =============================================================================
-
-  private determineApplicationMethod(
-    cue: PersonalCue, 
-    relevanceScore: number
-  ): 'automatic' | 'suggested' | 'manual' {
-    if (relevanceScore > 0.8 && cue.validationStatus === 'user_confirmed') {
-      return 'automatic';
-    } else if (relevanceScore > 0.6) {
-      return 'suggested';
-    } else {
-      return 'manual';
-    }
-  }
-
-  // =============================================================================
-  // 📝 수정 사항 생성
-  // =============================================================================
-
-  private generateModification(cue: PersonalCue, context: ApplicationContext): string {
-    switch (cue.cueType) {
-      case 'preference':
-        return this.generatePreferenceModification(cue, context);
-      case 'communication':
-        return this.generateCommunicationModification(cue, context);
-      case 'expertise':
-        return this.generateExpertiseModification(cue, context);
-      case 'goal':
-        return this.generateGoalModification(cue, context);
-      default:
-        return `Apply ${cue.key}: ${cue.value}`;
-    }
-  }
-
-  private generatePreferenceModification(cue: PersonalCue, context: ApplicationContext): string {
-    switch (cue.key) {
-      case 'response_length':
-        if (cue.value === 'brief') {
-          return '응답을 간결하고 핵심적으로 작성하세요.';
-        } else if (cue.value === 'detailed') {
-          return '상세하고 포괄적인 설명을 제공하세요.';
-        }
-        break;
-      
-      case 'examples':
-        if (cue.value === 'preferred') {
-          return '실용적인 예시와 코드 샘플을 포함하세요.';
-        }
-        break;
-        
-      case 'programming_language':
-        return `${cue.value} 언어로 예시 코드를 작성하세요.`;
-        
-      case 'format':
-        if (cue.value === 'list') {
-          return '정보를 목록이나 번호 형태로 구조화하세요.';
-        } else if (cue.value === 'step_by_step') {
-          return '단계별로 차근차근 설명하세요.';
-        }
-        break;
-    }
-    
-    return `${cue.description}에 따라 응답을 조정하세요.`;
-  }
-
-  private generateCommunicationModification(cue: PersonalCue, context: ApplicationContext): string {
-    switch (cue.key) {
-      case 'politeness':
-        if (cue.value === 'formal') {
-          return '정중하고 공손한 톤으로 응답하세요.';
-        } else if (cue.value === 'casual') {
-          return '친근하고 편안한 톤으로 대화하세요.';
-        }
-        break;
-        
-      case 'emoji_usage':
-        if (cue.value === 'frequent') {
-          return '적절한 이모지를 사용하여 감정을 표현하세요.';
-        }
-        break;
-    }
-    
-    return `커뮤니케이션 스타일: ${cue.description}`;
-  }
-
-  private generateExpertiseModification(cue: PersonalCue, context: ApplicationContext): string {
-    if (cue.key === 'domain' && context.contextTags.includes(cue.value)) {
-      return `${cue.value} 전문 지식을 활용하여 답변하세요.`;
-    } else if (cue.key === 'level') {
-      if (cue.value === 'beginner') {
-        return '기초부터 차근차근 설명하고 어려운 용어는 쉽게 풀어서 설명하세요.';
-      } else if (cue.value === 'advanced') {
-        return '고급 개념과 심화 내용을 포함하여 전문적으로 답변하세요.';
-      }
-    }
-    
-    return `전문성 수준 (${cue.value})에 맞게 답변 깊이를 조정하세요.`;
-  }
-
-  private generateGoalModification(cue: PersonalCue, context: ApplicationContext): string {
-    switch (cue.value) {
-      case 'learning':
-        return '학습에 도움이 되도록 교육적 관점에서 설명하고 추가 학습 자료를 제안하세요.';
-      case 'problem_solving':
-        return '문제 해결에 집중하여 구체적이고 실행 가능한 솔루션을 제시하세요.';
-      case 'creation':
-        return '창작과 개발에 도움이 되는 창의적이고 실용적인 아이디어를 제공하세요.';
-      default:
-        return `목적 (${cue.value})에 맞게 답변을 최적화하세요.`;
-    }
-  }
-
-  // =============================================================================
-  // 🏗️ 최종 적용 결과 구성
-  // =============================================================================
-
-  private buildApplicationResult(
-    context: ApplicationContext,
-    selectedCues: CueApplication[]
-  ): ApplicationResult {
-    const systemPromptAdditions: string[] = [];
-    const responseGuidelines: string[] = [];
-    let modifiedQuery = context.userQuery;
-    
-    // 큐별로 수정사항 적용
-    for (const application of selectedCues) {
-      if (application.applicationMethod === 'automatic') {
-        systemPromptAdditions.push(application.modification);
+      if (!seenContents.has(normalizedContent)) {
+        seenContents.add(normalizedContent);
+        uniqueCues.push(cue);
       } else {
-        responseGuidelines.push(application.modification);
-      }
-    }
-
-    // 쿼리 수정 (필요한 경우)
-    const queryModifications = this.generateQueryModifications(selectedCues, context);
-    if (queryModifications.length > 0) {
-      modifiedQuery = `${context.userQuery}\n\n[개인화 요청: ${queryModifications.join(', ')}]`;
-    }
-
-    const confidenceScore = selectedCues.length > 0 
-      ? selectedCues.reduce((sum, app) => sum + app.confidence, 0) / selectedCues.length 
-      : 0;
-
-    const estimatedImprovement = this.calculateEstimatedImprovement(selectedCues);
-
-    return {
-      originalQuery: context.userQuery,
-      modifiedQuery,
-      appliedCues: selectedCues,
-      systemPromptAdditions,
-      responseGuidelines,
-      confidenceScore,
-      applicationReasoning: this.generateApplicationReasoning(selectedCues, context),
-      estimatedImprovement
-    };
-  }
-
-  // =============================================================================
-  // 🧠 헬퍼 메서드들
-  // =============================================================================
-
-  private selectCuesForApplication(
-    rankedCues: CueApplication[],
-    context: ApplicationContext
-  ): CueApplication[] {
-    const maxCues = this.determineMaxCues(context);
-    return rankedCues.slice(0, maxCues);
-  }
-
-  private determineMaxCues(context: ApplicationContext): number {
-    // 컨텍스트에 따라 적용할 최대 큐 수 결정
-    if (context.urgency === 'high') return 3;
-    if (context.taskType === 'learning') return 5;
-    return 4;
-  }
-
-  private generateQueryModifications(
-    selectedCues: CueApplication[],
-    context: ApplicationContext
-  ): string[] {
-    const modifications: string[] = [];
-    
-    for (const app of selectedCues) {
-      if (app.cue.cueType === 'preference' && app.confidence > 0.8) {
-        if (app.cue.key === 'response_length' && app.cue.value === 'brief') {
-          modifications.push('간결하게');
-        } else if (app.cue.key === 'examples' && app.cue.value === 'preferred') {
-          modifications.push('예시 포함');
+        // 기존 CUE의 신뢰도 업데이트
+        const existingIndex = uniqueCues.findIndex(
+          existing => existing.content.toLowerCase().trim() === normalizedContent
+        );
+        
+        if (existingIndex !== -1 && cue.confidence > uniqueCues[existingIndex].confidence) {
+          uniqueCues[existingIndex] = cue;
         }
       }
     }
-    
-    return modifications;
+
+    return uniqueCues;
   }
 
-  private calculateEstimatedImprovement(selectedCues: CueApplication[]): number {
-    if (selectedCues.length === 0) return 0;
-    
-    const avgConfidence = selectedCues.reduce((sum, app) => sum + app.confidence, 0) / selectedCues.length;
-    const cueCount = selectedCues.length;
-    const diversity = new Set(selectedCues.map(app => app.cue.cueType)).size;
-    
-    return Math.min(1.0, avgConfidence * 0.6 + (cueCount / 10) * 0.3 + (diversity / 7) * 0.1);
-  }
+  // =============================================================================
+  // 데이터베이스 저장
+  // =============================================================================
 
-  private generateApplicationReasoning(
-    selectedCues: CueApplication[],
-    context: ApplicationContext
-  ): string;
-  private generateApplicationReasoning(
-    cue: PersonalCue,
-    context: ApplicationContext,
-    relevanceScore: number
-  ): string;
-  private generateApplicationReasoning(
-    cueOrCues: PersonalCue | CueApplication[],
-    context: ApplicationContext,
-    relevanceScore?: number
-  ): string {
-    if (Array.isArray(cueOrCues)) {
-      // 전체 적용 추론
-      const cues = cueOrCues;
-      if (cues.length === 0) {
-        return '적용 가능한 개인화 큐가 없어 기본 응답을 제공합니다.';
+  private async saveCuesToDatabase(
+    cues: ExtractedCue[], 
+    context: CueContext,
+    processingMetadata: Record<string, unknown>
+  ): Promise<PersonalCue[]> {
+    const savedCues: PersonalCue[] = [];
+
+    for (const cue of cues) {
+      try {
+        const cueData = {
+          user_id: this.userId,
+          cue_type: cue.type,
+          cue_category: context.domain || 'general',
+          cue_name: this.generateCueName(cue),
+          cue_description: cue.metadata?.explanation || `${cue.type} CUE extracted from ${context.platform}`,
+          cue_data: {
+            content: cue.content,
+            originalText: cue.originalText,
+            source: cue.source,
+            extractedAt: cue.extractedAt.toISOString()
+          },
+          confidence_score: cue.confidence,
+          context_data: cue.context,
+          platform_source: context.platform,
+          original_input: cue.originalText,
+          processed_input: cue,
+          ai_model_used: cue.metadata?.aiModel || null,
+          processing_metadata: {
+            ...processingMetadata,
+            cueMetadata: cue.metadata
+          }
+        };
+
+        const { data, error } = await supabase
+          .from('personal_cues')
+          .insert(cueData)
+          .select()
+          .single();
+
+        if (error) {
+          console.error('❌ CUE 저장 실패:', error);
+          continue;
+        }
+
+        if (data) {
+          savedCues.push(data as PersonalCue);
+          console.log(`✅ CUE 저장됨: ${cue.type} - ${cue.content.substring(0, 50)}...`);
+        }
+
+      } catch (error) {
+        console.error('❌ CUE 저장 중 오류:', error);
       }
-      
-      const cueTypes = [...new Set(cues.map(app => app.cue.cueType))];
-      return `${cues.length}개의 개인화 큐 적용: ${cueTypes.join(', ')} 기반으로 맞춤형 응답 생성`;
-    } else {
-      // 개별 큐 추론
-      const cue = cueOrCues;
-      return `${cue.cueType} 타입의 "${cue.key}" 설정 (${cue.value})을 적용하여 응답을 개인화합니다. 신뢰도: ${(relevanceScore || 0).toFixed(2)}`;
+    }
+
+    return savedCues;
+  }
+
+  private generateCueName(cue: ExtractedCue): string {
+    const maxLength = 100;
+    let name = `${cue.type}: ${cue.content}`;
+    
+    if (name.length > maxLength) {
+      name = name.substring(0, maxLength - 3) + '...';
+    }
+
+    return name;
+  }
+
+  // =============================================================================
+  // 기존 CUE 조회 및 활용
+  // =============================================================================
+
+  async getUserCues(
+    options: {
+      types?: CueType[];
+      minConfidence?: number;
+      limit?: number;
+      category?: string;
+    } = {}
+  ): Promise<PersonalCue[]> {
+    try {
+      let query = supabase
+        .from('personal_cues')
+        .select('*')
+        .eq('user_id', this.userId)
+        .eq('status', 'active');
+
+      if (options.types?.length) {
+        query = query.in('cue_type', options.types);
+      }
+
+      if (options.minConfidence) {
+        query = query.gte('confidence_score', options.minConfidence);
+      }
+
+      if (options.category) {
+        query = query.eq('cue_category', options.category);
+      }
+
+      query = query
+        .order('confidence_score', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(options.limit || 50);
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('❌ CUE 조회 실패:', error);
+        return [];
+      }
+
+      return data as PersonalCue[];
+
+    } catch (error) {
+      console.error('❌ CUE 조회 중 오류:', error);
+      return [];
     }
   }
 
-  private isTaskSpecificMatch(cue: PersonalCue, context: ApplicationContext): boolean {
-    // 작업별 특화 매칭 로직
-    return cue.tags.some(tag => context.contextTags.includes(tag));
-  }
+  async getRelevantCues(context: CueContext, limit: number = 10): Promise<PersonalCue[]> {
+    try {
+      const { data, error } = await supabase
+        .from('personal_cues')
+        .select('*')
+        .eq('user_id', this.userId)
+        .eq('status', 'active')
+        .contains('context_data', { platform: context.platform })
+        .order('confidence_score', { ascending: false })
+        .limit(limit);
 
-  private calculateKeywordMatch(cue: PersonalCue, query: string): number {
-    const cueKeywords = [...cue.tags, cue.key, cue.value.toLowerCase()];
-    const queryLower = query.toLowerCase();
-    
-    const matches = cueKeywords.filter(keyword => 
-      queryLower.includes(keyword.toLowerCase())
-    );
-    
-    return matches.length / Math.max(cueKeywords.length, 1);
-  }
+      if (error) {
+        console.error('❌ 관련 CUE 조회 실패:', error);
+        return [];
+      }
 
-  private async recordUsage(
-    userDid: string,
-    applications: CueApplication[],
-    context: ApplicationContext,
-    result: ApplicationResult
-  ): Promise<void> {
-    // 실제 구현에서는 데이터베이스에 기록
-    for (const app of applications) {
-      const usage: CueUsageHistory = {
-        id: `usage-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        cueId: app.cueId,
-        userDid,
-        agentDid: 'system', // 실제로는 사용된 AI agent ID
-        interactionId: `interaction-${Date.now()}`,
-        conversationContext: context.conversationId,
-        queryText: context.userQuery,
-        appliedModification: app.modification,
-        applicationMethod: app.applicationMethod,
-        applicationConfidence: app.confidence,
-        contextRelevance: app.confidence, // 간소화
-        immediateEffectiveness: result.estimatedImprovement,
-        userSatisfaction: 0, // 나중에 피드백으로 업데이트
-        responseImprovement: result.estimatedImprovement,
-        taskCompletionHelp: result.estimatedImprovement,
-        userFeedback: 'no_feedback',
-        ledToFollowUp: false,
-        createdNewCue: false,
-        modifiedExistingCue: false,
-        responseTimeImpact: 0,
-        tokenUsageImpact: 0,
-        usedAt: new Date()
-      };
-      
-      this.usageHistory.push(usage);
+      return data as PersonalCue[];
+
+    } catch (error) {
+      console.error('❌ 관련 CUE 조회 중 오류:', error);
+      return [];
     }
   }
 }
 
 // =============================================================================
-// 🔍 컨텍스트 분석기
+// 팩토리 함수
 // =============================================================================
 
-class ApplicationContextAnalyzer {
-  analyzeContext(context: ApplicationContext): any {
-    return {
-      complexity: this.estimateQueryComplexity(context.userQuery),
-      domain: this.detectDomain(context.userQuery),
-      intent: this.detectIntent(context.userQuery),
-      timeContext: context.timeOfDay,
-      platformContext: context.platform
-    };
-  }
-
-  private estimateQueryComplexity(query: string): 'simple' | 'medium' | 'complex' {
-    const wordCount = query.split(' ').length;
-    const hasCode = /```|`/.test(query);
-    const hasMultipleQuestions = (query.match(/[?？]/g) || []).length > 1;
-    
-    if (wordCount < 10 && !hasCode && !hasMultipleQuestions) return 'simple';
-    if (wordCount > 50 || hasCode || hasMultipleQuestions) return 'complex';
-    return 'medium';
-  }
-
-  private detectDomain(query: string): string[] {
-    const domains: string[] = [];
-    const queryLower = query.toLowerCase();
-    
-    if (/code|program|function|class|javascript|python|typescript/.test(queryLower)) {
-      domains.push('programming');
-    }
-    if (/design|ui|ux|layout|color|font/.test(queryLower)) {
-      domains.push('design');
-    }
-    if (/data|analysis|chart|graph|statistics/.test(queryLower)) {
-      domains.push('data_science');
-    }
-    
-    return domains.length > 0 ? domains : ['general'];
-  }
-
-  private detectIntent(query: string): 'question' | 'request' | 'command' | 'discussion' {
-    const queryLower = query.toLowerCase();
-    
-    if (/^(what|how|why|when|where|which|who)/.test(queryLower) || /[?？]/.test(query)) {
-      return 'question';
-    }
-    if (/^(please|can you|could you|would you|help me)/.test(queryLower)) {
-      return 'request';
-    }
-    if (/^(create|make|build|generate|write|show|explain)/.test(queryLower)) {
-      return 'command';
-    }
-    
-    return 'discussion';
-  }
+export function createCueExtractor(userId: string): CueExtractor {
+  return new CueExtractor(userId);
 }
 
-export default CueApplicationEngine;
+// 기본 내보내기
+export default CueExtractor;

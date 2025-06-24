@@ -1,186 +1,279 @@
 // =============================================================================
-// 🔧 WebAuthn + DID + AI 시스템 통합 설정
+// 🔧 전체 시스템 설정
+// 파일: src/lib/config/index.ts
 // =============================================================================
 
-export const CONFIG = {
-  // 🌐 서버 및 배포 설정
-  SERVER: {
-    NODE_ENV: process.env.NODE_ENV || 'development',
-    PORT: parseInt(process.env.PORT || '3000'),
-    API_VERSION: process.env.API_VERSION || 'v1',
-    BASE_URL: process.env.NEXT_PUBLIC_APP_URL || 'https://34ff-125-142-232-68.ngrok-free.app',
-    WEBSOCKET_URL: process.env.NEXT_PUBLIC_APP_URL?.replace('https', 'wss') || 'wss://34ff-125-142-232-68.ngrok-free.app'
-  },
+// 환경 변수 타입 안전성 확보
+interface EnvironmentConfig {
+  // 기본 설정
+  NODE_ENV: 'development' | 'production' | 'test';
+  PORT: number;
+  API_VERSION: string;
 
-  // 🔐 WebAuthn 설정 (ngrok 기반)
-  WEBAUTHN: {
-    RP_ID: process.env.WEBAUTHN_RP_ID || '34ff-125-142-232-68.ngrok-free.app',
-    RP_NAME: process.env.WEBAUTHN_RP_NAME || 'Fusion AI System',
-    ORIGIN: process.env.WEBAUTHN_ORIGIN || 'https://34ff-125-142-232-68.ngrok-free.app',
-    TIMEOUT: 60000,
-    USER_VERIFICATION: 'preferred' as const,
-    ATTESTATION: 'none' as const,
-    ALGORITHMS: [-7, -257] // ES256, RS256
-  },
+  // 앱 URL (ngrok 등)
+  APP_URL: string;
+  NGROK_TUNNEL_URL?: string;
 
-  // 🆔 DID 설정
-  DID: {
-    METHOD: process.env.DID_METHOD || 'web',
-    NETWORK: process.env.DID_NETWORK || 'production',
-    RESOLVER_URL: process.env.DID_RESOLVER_URL || 'https://34ff-125-142-232-68.ngrok-free.app',
-    BASE_CONTEXT: 'https://www.w3.org/ns/did/v1'
-  },
+  // WebAuthn 설정
+  WEBAUTHN_RP_NAME: string;
+  WEBAUTHN_RP_ID: string;
+  WEBAUTHN_ORIGIN: string;
 
-  // 🗄️ Supabase 설정
-  SUPABASE: {
-    URL: process.env.SUPABASE_URL || 'https://luqmowvevwfwqbkbahko.supabase.co',
-    ANON_KEY: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1cW1vd3Zldndmd3Fia2JhaGtvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA3MDA0ODQsImV4cCI6MjA2NjI3NjQ4NH0.SUBvP-M3FwpqbasjeMUfWwEV3ifOi_APA5DvznT26nE',
-    SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-    PROJECT_ID: 'luqmowvevwfwqbkbahko'
-  },
+  // Supabase 설정
+  SUPABASE_URL: string;
+  SUPABASE_ANON_KEY: string;
+  SUPABASE_SERVICE_ROLE_KEY: string;
+  SUPABASE_JWT_SECRET: string;
 
-  // 🤖 AI 서비스 설정
-  AI: {
-    OPENAI: {
-      API_KEY: process.env.OPENAI_API_KEY || '',
-      MODEL: 'gpt-4-turbo-preview',
-      MAX_TOKENS: 2048,
-      TEMPERATURE: 0.7
-    },
-    CLAUDE: {
-      API_KEY: process.env.CLAUDE_API_KEY || '',
-      MODEL: 'claude-3-sonnet-20240229',
-      MAX_TOKENS: 2048,
-      TEMPERATURE: 0.7
-    },
-    GEMINI: {
-      API_KEY: process.env.GEMINI_API_KEY || '',
-      MODEL: 'gemini-2.0-flash',
-      MAX_TOKENS: 2048,
-      TEMPERATURE: 0.7
-    },
-    DEFAULT_PROVIDER: 'openai' as const
-  },
+  // AI 서비스
+  OPENAI_API_KEY?: string;
+  CLAUDE_API_KEY?: string;
+  GEMINI_API_KEY?: string;
+  HUGGINGFACE_API_KEY?: string;
 
-  // 🔐 OAuth 설정
-  GOOGLE: {
-    CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '103912432221-ms5fjkeh5l5uuoi9a9rf1dm8rn11insj.apps.googleusercontent.com',
-    CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || '',
-    REDIRECT_URI: `${process.env.NEXT_PUBLIC_APP_URL}/auth/google/callback`
-  },
+  // Google OAuth
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  GOOGLE_API_KEY?: string;
 
-  // 🔑 JWT 설정
-  JWT: {
-    SECRET: process.env.JWT_SECRET || 'fallback-secret-key',
-    REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret',
-    EXPIRES_IN: '1h',
-    REFRESH_EXPIRES_IN: '7d'
-  },
+  // JWT 설정
+  JWT_SECRET: string;
+  JWT_REFRESH_SECRET: string;
 
-  // 🚀 기능 플래그
-  FEATURES: {
-    ENABLE_WEBAUTHN: process.env.NODE_ENV === 'production' || process.env.ENABLE_WEBAUTHN === 'true',
-    ENABLE_DID: true,
-    ENABLE_AI_CHAT: process.env.ENABLE_AI_CHAT === 'true',
-    ENABLE_VOICE_INPUT: process.env.ENABLE_VOICE_INPUT === 'true',
-    ENABLE_KNOWLEDGE_GRAPH: process.env.ENABLE_KNOWLEDGE_GRAPH === 'true',
-    ENABLE_ANALYTICS: process.env.ENABLE_ANALYTICS === 'true',
-    ENABLE_WEBSOCKET: true,
-    ENABLE_OFFLINE: true
-  },
+  // 기타 서비스
+  DISCORD_BOT_TOKEN?: string;
+  PINATA_API_KEY?: string;
+  PINATA_SECRET?: string;
 
-  // 📡 외부 서비스 설정
-  EXTERNAL: {
-    API_TIMEOUT: parseInt(process.env.EXTERNAL_API_TIMEOUT || '30000'),
-    RATE_LIMIT: parseInt(process.env.API_RATE_LIMIT || '100'),
-    MAX_FILE_SIZE: parseInt(process.env.MAX_FILE_SIZE || '10485760'), // 10MB
-    ALLOWED_ORIGINS: [
-      'https://34ff-125-142-232-68.ngrok-free.app',
-      'http://localhost:3000',
-      'http://localhost:3001'
-    ]
-  },
+  // DID 설정
+  DID_METHOD: 'web' | 'key';
+  DID_NETWORK: 'production' | 'testnet';
+  DID_RESOLVER_URL: string;
 
-  // 🔒 보안 설정
-  SECURITY: {
-    BCRYPT_ROUNDS: 12,
-    SESSION_TIMEOUT: 1000 * 60 * 60 * 24, // 24 hours
-    MAX_LOGIN_ATTEMPTS: 5,
-    LOCKOUT_TIME: 1000 * 60 * 15, // 15 minutes
-    CORS_ORIGINS: [
-      'https://34ff-125-142-232-68.ngrok-free.app',
-      'http://localhost:3000'
-    ]
-  },
+  // 보안 설정
+  API_RATE_LIMIT: number;
+  MAX_FILE_SIZE: number;
+  EXTERNAL_API_TIMEOUT: number;
 
-  // 📊 로깅 및 디버그
-  LOGGING: {
-    LEVEL: process.env.LOG_LEVEL || 'info',
-    DEBUG: process.env.DEBUG || 'fusion-ai:*',
-    ENABLE_REQUEST_LOGGING: true,
-    ENABLE_ERROR_TRACKING: true
+  // 기능 토글
+  ENABLE_AI_CHAT: boolean;
+  ENABLE_VOICE_INPUT: boolean;
+  ENABLE_KNOWLEDGE_GRAPH: boolean;
+  ENABLE_ANALYTICS: boolean;
+}
+
+// =============================================================================
+// 환경 변수 로드 및 검증
+// =============================================================================
+
+function getEnvVar(key: string, defaultValue?: string): string {
+  const value = process.env[key] || defaultValue;
+  if (!value) {
+    console.warn(`⚠️ 환경 변수 ${key}가 설정되지 않았습니다`);
+    return '';
   }
-} as const;
+  return value;
+}
+
+function getEnvNumber(key: string, defaultValue: number): number {
+  const value = process.env[key];
+  if (!value) return defaultValue;
+  const parsed = parseInt(value, 10);
+  return isNaN(parsed) ? defaultValue : parsed;
+}
+
+function getEnvBoolean(key: string, defaultValue: boolean): boolean {
+  const value = process.env[key];
+  if (!value) return defaultValue;
+  return value.toLowerCase() === 'true';
+}
 
 // =============================================================================
-// 🔧 환경 검증
+// 메인 설정 객체
 // =============================================================================
-export function validateEnvironment(): { valid: boolean; errors: string[] } {
+
+export const config: EnvironmentConfig = {
+  // 기본 설정
+  NODE_ENV: (process.env.NODE_ENV as any) || 'development',
+  PORT: getEnvNumber('PORT', 3001),
+  API_VERSION: getEnvVar('API_VERSION', 'v1'),
+
+  // 앱 URL
+  APP_URL: getEnvVar('NEXT_PUBLIC_APP_URL', 'http://localhost:3001'),
+  NGROK_TUNNEL_URL: getEnvVar('NGROK_TUNNEL_URL'),
+
+  // WebAuthn 설정
+  WEBAUTHN_RP_NAME: getEnvVar('WEBAUTHN_RP_NAME', 'WebAuthn DID System'),
+  WEBAUTHN_RP_ID: getEnvVar('WEBAUTHN_RP_ID', 'localhost'),
+  WEBAUTHN_ORIGIN: getEnvVar('WEBAUTHN_ORIGIN', 'http://localhost:3001'),
+
+  // Supabase 설정
+  SUPABASE_URL: getEnvVar('NEXT_PUBLIC_SUPABASE_URL', ''),
+  SUPABASE_ANON_KEY: getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY', ''),
+  SUPABASE_SERVICE_ROLE_KEY: getEnvVar('SUPABASE_SERVICE_ROLE_KEY', ''),
+  SUPABASE_JWT_SECRET: getEnvVar('SUPABASE_JWT_SECRET', ''),
+
+  // AI 서비스
+  OPENAI_API_KEY: getEnvVar('OPENAI_API_KEY'),
+  CLAUDE_API_KEY: getEnvVar('CLAUDE_API_KEY'),
+  GEMINI_API_KEY: getEnvVar('GEMINI_API_KEY'),
+  HUGGINGFACE_API_KEY: getEnvVar('HUGGINGFACE_API_KEY'),
+
+  // Google OAuth
+  GOOGLE_CLIENT_ID: getEnvVar('GOOGLE_CLIENT_ID'),
+  GOOGLE_CLIENT_SECRET: getEnvVar('GOOGLE_CLIENT_SECRET'),
+  GOOGLE_API_KEY: getEnvVar('GOOGLE_API_KEY'),
+
+  // JWT 설정
+  JWT_SECRET: getEnvVar('JWT_SECRET', 'your-super-secret-jwt-key'),
+  JWT_REFRESH_SECRET: getEnvVar('JWT_REFRESH_SECRET', 'your-super-secret-refresh-key'),
+
+  // 기타 서비스
+  DISCORD_BOT_TOKEN: getEnvVar('DISCORD_BOT_TOKEN'),
+  PINATA_API_KEY: getEnvVar('PINATA_API_KEY'),
+  PINATA_SECRET: getEnvVar('PINATA_SECRET'),
+
+  // DID 설정
+  DID_METHOD: (getEnvVar('DID_METHOD', 'web') as 'web' | 'key'),
+  DID_NETWORK: (getEnvVar('DID_NETWORK', 'production') as 'production' | 'testnet'),
+  DID_RESOLVER_URL: getEnvVar('DID_RESOLVER_URL', 'http://localhost:3001'),
+
+  // 보안 설정
+  API_RATE_LIMIT: getEnvNumber('API_RATE_LIMIT', 100),
+  MAX_FILE_SIZE: getEnvNumber('MAX_FILE_SIZE', 10485760), // 10MB
+  EXTERNAL_API_TIMEOUT: getEnvNumber('EXTERNAL_API_TIMEOUT', 30000), // 30초
+
+  // 기능 토글
+  ENABLE_AI_CHAT: getEnvBoolean('ENABLE_AI_CHAT', true),
+  ENABLE_VOICE_INPUT: getEnvBoolean('ENABLE_VOICE_INPUT', true),
+  ENABLE_KNOWLEDGE_GRAPH: getEnvBoolean('ENABLE_KNOWLEDGE_GRAPH', true),
+  ENABLE_ANALYTICS: getEnvBoolean('ENABLE_ANALYTICS', true),
+};
+
+// =============================================================================
+// 설정 검증 함수
+// =============================================================================
+
+export function validateConfig(): {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+} {
   const errors: string[] = [];
+  const warnings: string[] = [];
 
-  // 필수 환경 변수 검증
-  const required = [
-    'SUPABASE_URL',
-    'SUPABASE_ANON_KEY',
-    'JWT_SECRET'
-  ];
+  // 필수 설정 검증
+  if (!config.SUPABASE_URL) {
+    errors.push('SUPABASE_URL이 설정되지 않았습니다');
+  }
 
-  required.forEach(key => {
-    if (!process.env[key]) {
-      errors.push(`Missing required environment variable: ${key}`);
-    }
-  });
+  if (!config.SUPABASE_ANON_KEY) {
+    errors.push('SUPABASE_ANON_KEY가 설정되지 않았습니다');
+  }
 
-  // WebAuthn 설정 검증 (프로덕션에서만)
-  if (CONFIG.FEATURES.ENABLE_WEBAUTHN) {
-    if (!CONFIG.WEBAUTHN.RP_ID.includes('.') && CONFIG.SERVER.NODE_ENV === 'production') {
-      errors.push('WebAuthn RP_ID must be a valid domain in production');
+  if (!config.JWT_SECRET || config.JWT_SECRET === 'your-super-secret-jwt-key') {
+    warnings.push('JWT_SECRET이 기본값입니다. 운영 환경에서는 변경하세요');
+  }
+
+  // WebAuthn 설정 검증
+  if (config.NODE_ENV === 'production') {
+    if (!config.WEBAUTHN_ORIGIN.startsWith('https://')) {
+      errors.push('운영 환경에서는 WEBAUTHN_ORIGIN이 HTTPS여야 합니다');
     }
   }
 
-  // AI 서비스 검증 (하나 이상의 API 키 필요)
-  if (CONFIG.FEATURES.ENABLE_AI_CHAT) {
-    const hasAnyAIKey = CONFIG.AI.OPENAI.API_KEY || CONFIG.AI.CLAUDE.API_KEY || CONFIG.AI.GEMINI.API_KEY;
-    if (!hasAnyAIKey) {
-      errors.push('At least one AI service API key is required when AI chat is enabled');
-    }
+  // AI 서비스 검증
+  if (!config.OPENAI_API_KEY && !config.CLAUDE_API_KEY && !config.GEMINI_API_KEY) {
+    warnings.push('AI 서비스 API 키가 설정되지 않았습니다. AI 기능이 제한됩니다');
   }
 
   return {
-    valid: errors.length === 0,
-    errors
+    isValid: errors.length === 0,
+    errors,
+    warnings
   };
 }
 
 // =============================================================================
-// 🎯 개발/프로덕션 설정 오버라이드
+// 런타임 설정 정보
 // =============================================================================
-export const isDevelopment = CONFIG.SERVER.NODE_ENV === 'development';
-export const isProduction = CONFIG.SERVER.NODE_ENV === 'production';
 
-// 개발 환경에서는 보안 설정 완화
-if (isDevelopment) {
-  CONFIG.SECURITY.MAX_LOGIN_ATTEMPTS = 10;
-  CONFIG.SECURITY.LOCKOUT_TIME = 1000 * 60 * 5; // 5분
-  CONFIG.JWT.EXPIRES_IN = '24h'; // 개발 편의
+export function getSystemInfo() {
+  return {
+    environment: config.NODE_ENV,
+    version: process.env.npm_package_version || '1.0.0',
+    port: config.PORT,
+    features: {
+      webauthn: true,
+      did: true,
+      ai: !!(config.OPENAI_API_KEY || config.CLAUDE_API_KEY || config.GEMINI_API_KEY),
+      database: !!config.SUPABASE_URL,
+      oauth: !!config.GOOGLE_CLIENT_ID,
+    },
+    urls: {
+      app: config.APP_URL,
+      webauthn: config.WEBAUTHN_ORIGIN,
+      database: config.SUPABASE_URL ? `${config.SUPABASE_URL.substring(0, 30)}...` : 'Not configured',
+    },
+    timestamp: new Date().toISOString()
+  };
 }
 
 // =============================================================================
-// 🚀 설정 내보내기
+// 개발용 디버그 함수
 // =============================================================================
-export default CONFIG;
 
-// 타입 안전성을 위한 설정 타입 정의
-export type ConfigType = typeof CONFIG;
-export type FeatureFlags = typeof CONFIG.FEATURES;
-export type SecurityConfig = typeof CONFIG.SECURITY;
+export function debugConfig() {
+  if (config.NODE_ENV !== 'development') {
+    console.warn('디버그 함수는 개발 환경에서만 사용하세요');
+    return;
+  }
+
+  console.log('🔧 시스템 설정 디버그:');
+  console.log('  환경:', config.NODE_ENV);
+  console.log('  포트:', config.PORT);
+  console.log('  앱 URL:', config.APP_URL);
+  console.log('  WebAuthn RP ID:', config.WEBAUTHN_RP_ID);
+  console.log('  Supabase URL:', config.SUPABASE_URL ? '✅ 설정됨' : '❌ 없음');
+  console.log('  AI 서비스:', {
+    openai: !!config.OPENAI_API_KEY,
+    claude: !!config.CLAUDE_API_KEY,
+    gemini: !!config.GEMINI_API_KEY,
+  });
+
+  const validation = validateConfig();
+  if (validation.errors.length > 0) {
+    console.error('❌ 설정 오류:', validation.errors);
+  }
+  if (validation.warnings.length > 0) {
+    console.warn('⚠️ 설정 경고:', validation.warnings);
+  }
+}
+
+// =============================================================================
+// 초기화 시 설정 검증
+// =============================================================================
+
+if (typeof window === 'undefined') { // 서버에서만 실행
+  const validation = validateConfig();
+  
+  if (validation.errors.length > 0) {
+    console.error('❌ 시스템 설정 오류:');
+    validation.errors.forEach(error => console.error(`  - ${error}`));
+  }
+  
+  if (validation.warnings.length > 0) {
+    console.warn('⚠️ 시스템 설정 경고:');
+    validation.warnings.forEach(warning => console.warn(`  - ${warning}`));
+  }
+
+  if (config.NODE_ENV === 'development') {
+    console.log('🚀 WebAuthn + DID + DB 시스템 설정 로드 완료');
+    console.log(`   환경: ${config.NODE_ENV}`);
+    console.log(`   포트: ${config.PORT}`);
+    console.log(`   WebAuthn: ${config.WEBAUTHN_ORIGIN}`);
+  }
+}
+
+// 기본 내보내기
+export default config;

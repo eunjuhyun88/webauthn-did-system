@@ -11,7 +11,7 @@ import {
 
 // 기존 시스템 import
 import { detectLanguageFromText, getWebAuthnMessages, detectBrowserLanguage } from '@/auth/webauthn/multilingual-helper';
-import { SupportedLanguage } from '@/types/multilingual-cue.types';
+import { SupportedLanguage } from '@/types/multilingual-cue';
 
 // =============================================================================
 // 🔧 Enhanced Types (기존 타입 확장)

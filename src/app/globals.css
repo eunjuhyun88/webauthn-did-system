@@ -4,48 +4,31 @@
 
 @layer base {
   html {
-    scroll-behavior: smooth;
+    font-family: "Inter", system-ui, sans-serif;
   }
-
+  
   body {
-    @apply bg-gray-50 text-gray-900;
-    font-feature-settings: 'rlig' 1, 'calt' 1;
-  }
-
-  * {
-    @apply border-border;
+    @apply antialiased;
   }
 }
 
 @layer components {
-  .btn-primary {
-    @apply px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors;
+  .bg-grid-pattern {
+    background-image: url("data:image/svg+xml,%3csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3e%3cg fill='none' fill-rule='evenodd'%3e%3cg fill='%23cbd5e1' fill-opacity='0.1'%3e%3ccircle cx='7' cy='7' r='1'/%3e%3c/g%3e%3c/g%3e%3c/svg%3e");
   }
-
-  .btn-secondary {
-    @apply px-4 py-2 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors;
-  }
-
-  .input-primary {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
-  }
-
-  .card {
-    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-4;
+  
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-in-out;
   }
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
-
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
