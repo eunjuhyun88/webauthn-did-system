@@ -11,25 +11,34 @@ node_modules/
 .env*.local
 .env
 
-# 백업 및 임시 파일들 (핵심!)
+# ===== 절대 추가하지 말 것들 =====
+# 백업 폴더들
 _archive/
 *_backup*/
 src_backup_*/
 backup_*/
+backups/
 *_old*/
 *_temp*/
-*.backup
 
-# 임시 스크립트들
-auth.sh
-final.sh
-jsx.sh
-missing.sh
-ui.sh
-gittt.sh
+# 개발용 스크립트들
+*.sh
 *.sh.backup
+dev-check.sh
+install-dependencies.sh
 
-# 기타
-.DS_Store
+# 개발 도구
+.vscode/
+.idea/
+apps.code-workspace
+.aliases
+
+# 임시 파일들
+*.backup
+*.test-status
+.multilingual-test-status
 *.log
+
+# 시스템 파일
+.DS_Store
 *.tsbuildinfo
