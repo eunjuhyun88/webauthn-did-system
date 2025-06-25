@@ -1,0 +1,217 @@
+{
+	"folders": [
+		{
+			"path": "../../../../../backup_trackers"
+		},
+		{
+			"path": "../../../../../config"
+		},
+		{
+			"path": "../../../../../docs"
+		},
+		{
+			"path": "../../../../../scripts"
+		},
+		{
+			"path": "../../../../../apps"
+		},
+		{
+			"path": "../../../../../apps/api-server"
+		},
+		{
+			"path": "../../../../../apps/web-app"
+		},
+		{
+			"path": "../../../../../packages"
+		},
+		{
+			"path": "../../../../../packages/system"
+		},
+		{
+			"path": "../../../../../packages/system/bootstrap"
+		},
+		{
+			"path": "../../../../../packages/system/config"
+		},
+		{
+			"path": "../../../../../packages/system/factories"
+		},
+		{
+			"path": "../../../../../packages/data-layer"
+		},
+		{
+			"path": "../../../../../packages/data-layer/migrations"
+		},
+		{
+			"path": "../../../../../packages/data-layer/models"
+		},
+		{
+			"path": "../../../../../packages/data-layer/repositories"
+		},
+		{
+			"path": "../../../../../packages/integration-layer"
+		},
+		{
+			"path": "../../../../../packages/integration-layer/external"
+		},
+		{
+			"path": "../../../../../packages/integration-layer/ai-services"
+		},
+		{
+			"path": "../../../../../packages/integration-layer/database"
+		},
+		{
+			"path": "../../../../../packages/integration-layer/webauthn"
+		},
+		{
+			"path": "../../../../../packages/core-layer"
+		},
+		{
+			"path": "../../../../../packages/core-layer/ai"
+		},
+		{
+			"path": "../../../../../packages/core-layer/did"
+		},
+		{
+			"path": "../../../../../packages/core-layer/auth"
+		},
+		{
+			"path": "../../../../../packages/ui-layer"
+		},
+		{
+			"path": "../../../../../packages/ui-layer/api-gateway"
+		},
+		{
+			"path": "../../../../../packages/ui-layer/web-dashboard"
+		},
+		{
+			"path": "../../../../../packages/core"
+		},
+		{
+			"path": "../../../../../node_modules"
+		},
+		{
+			"path": "../../../.."
+		},
+		{
+			"path": "../../../../integration-layer"
+		},
+		{
+			"path": "../../../../__tests__"
+		},
+		{
+			"path": "../../../../lib"
+		},
+		{
+			"path": "../../../../lib/database"
+		},
+		{
+			"path": "../../../../lib/webauthn"
+		},
+		{
+			"path": "../../../../lib/cue"
+		},
+		{
+			"path": "../../../../lib/cue/config"
+		},
+		{
+			"path": "../../../../lib/cue/context"
+		},
+		{
+			"path": "../../../../lib/cue/sync"
+		},
+		{
+			"path": "../../../../lib/cue/extractors"
+		},
+		{
+			"path": "../../../../lib/config"
+		},
+		{
+			"path": "../../../../lib/context"
+		},
+		{
+			"path": "../../../../lib/utils"
+		},
+		{
+			"path": "../../../../lib/utils/formatting"
+		},
+		{
+			"path": "../../../../lib/utils/validation"
+		},
+		{
+			"path": "../../../../lib/utils/crypto"
+		},
+		{
+			"path": "../../../../lib/hooks"
+		},
+		{
+			"path": "../../../../lib/hooks/knowledge"
+		},
+		{
+			"path": "../../../../lib/hooks/ai"
+		},
+		{
+			"path": "../../../../lib/hooks/auth"
+		},
+		{
+			"path": "../../../../components"
+		},
+		{
+			"path": "../../../../components/auth"
+		},
+		{
+			"path": "../../../../components/ui"
+		},
+		{
+			"path": "../../../../components/ui/layout"
+		},
+		{
+			"path": "../../../../components/ui/notifications"
+		},
+		{
+			"path": "../../../../components/ui/modals"
+		},
+		{
+			"path": "../../../../components/ui/forms"
+		},
+		{
+			"path": "../../../../components/ui/buttons"
+		},
+		{
+			"path": "../../../../components/profile"
+		},
+		{
+			"path": "../../../../components/knowledge"
+		},
+		{
+			"path": "../../../../components/chat"
+		},
+		{
+			"path": "../../../../components/dashboard"
+		},
+		{
+			"path": "../../../../types"
+		},
+		{
+			"path": "../../../../api"
+		},
+		{
+			"path": "../../../../services"
+		},
+		{
+			"path": "../../../../database"
+		},
+		{
+			"path": "../../../../identity"
+		},
+		{
+			"path": "../../../../auth"
+		},
+		{
+			"path": "../../.."
+		},
+		{
+			"path": "../../../../../public"
+		}
+	]
+}

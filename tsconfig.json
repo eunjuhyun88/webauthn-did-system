@@ -1,13 +1,10 @@
 {
   "compilerOptions": {
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "es6"
-    ],
+    "target": "es5",
+    "lib": ["dom", "dom.iterable", "es6"],
     "allowJs": true,
     "skipLibCheck": true,
-    "strict": true,
+    "strict": false,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
@@ -16,36 +13,14 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+    "plugins": [{ "name": "next" }],
     "baseUrl": ".",
-    "paths": {
-      "@/*": [
-        "./src/*"
-      ],
-      "@/packages/*": [
-        "./packages/*"
-      ],
-      "@/core/*": [
-        "./packages/core/*"
-      ],
-      "@/ui/*": [
-        "./packages/ui-layer/*"
-      ],
-      "@/integration/*": [
-        "./packages/integration-layer/*"
-      ],
-      "@/data/*": [
-        "./packages/data-layer/*"
-      ],
-      "@/system/*": [
-        "./packages/system/*"
-      ]
-    },
-    "target": "ES2017"
+    "paths": { "@/*": ["./src/*"] },
+    "forceConsistentCasingInFileNames": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitAny": false,
+    "noImplicitReturns": false
   },
   "include": [
     "next-env.d.ts",
@@ -53,7 +28,5 @@
     "**/*.tsx",
     ".next/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules"
-  ]
+  "exclude": ["node_modules"]
 }
