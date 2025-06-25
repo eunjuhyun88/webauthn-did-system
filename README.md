@@ -1,185 +1,236 @@
-# 🚀 Zauri + AI Passport 통합 시스템
+# 🎯 AI Passport + Cue System
 
-WebAuthn 기반 생체인증과 RAG-DAG 지식 그래프를 결합한 차세대 개인화 AI 플랫폼
+개인화 AI와 컨텍스트 채굴을 통합한 차세대 플랫폼
 
 ## ✨ 주요 기능
 
-### 🔐 AI Passport 시스템
-- **WebAuthn 생체인증**: Touch ID, Face ID를 통한 안전한 로그인
-- **DID 신원 관리**: 탈중앙화 신원 증명
-- **데이터 볼트**: 개인 데이터의 암호화된 저장소
-- **개인화 AI 에이전트**: 사용자 맞춤형 AI 모델 학습
-- **CUE 토큰 채굴**: 대화를 통한 토큰 획득
+### 🎭 AI Passport
+- **개성 프로필**: MBTI 기반 AI 개성 분석
+- **통합 신원**: DID + WebAuthn 생체인증
+- **데이터 볼트**: 암호화된 개인 데이터 저장소
 
-### 🌐 Zauri 크로스플랫폼 시스템
-- **RAG-DAG 지식 그래프**: 의미적 연관성 기반 지식 저장
-- **28:1 압축 기술**: 88% 의미 보존으로 효율적 데이터 전송
-- **실시간 동기화**: ChatGPT, Claude, Notion 등 플랫폼 간 맥락 공유
-- **토큰 경제**: ZAURI, ZGT, ZRP 다중 토큰 시스템
+### 💎 CUE 채굴 시스템
+- **컨텍스트 채굴**: 대화 데이터에서 자동 CUE 토큰 생성
+- **플랫폼 연동**: ChatGPT, Claude, Gemini 등 연결
+- **실시간 동기화**: 크로스 플랫폼 데이터 통합
 
-## 🏗️ 기술 스택
+### 🤖 개인화 AI 에이전트
+- **맞춤형 학습**: AI Passport 데이터로 학습
+- **체크포인트 관리**: 모델 버전 관리 및 롤백
+- **전문 에이전트**: 코딩, 창작, 분석 등 특화 AI
 
-- **Frontend**: Next.js 14, React 18, TypeScript, Tailwind CSS
-- **Backend**: Next.js API Routes, Supabase
-- **인증**: WebAuthn, DID, JWT
-- **AI**: OpenAI GPT-4, Anthropic Claude, Google Gemini
-- **UI**: Lucide React, Framer Motion, HeadlessUI
-- **데이터베이스**: Supabase PostgreSQL
+## 🚀 빠른 시작
+
+### 1. 저장소 클론
+```bash
+git clone https://github.com/your-username/ai-passport-cue-system.git
+cd ai-passport-cue-system
+```
+
+### 2. 의존성 설치
+```bash
+chmod +x install-dependencies.sh
+./install-dependencies.sh
+```
+
+### 3. 환경 변수 설정
+```bash
+cp .env.example .env.local
+# .env.local 파일을 편집하여 API 키들을 입력하세요
+```
+
+### 4. 개발 서버 실행
+```bash
+npm run dev
+```
+
+브라우저에서 [http://localhost:3000](http://localhost:3000)을 열어 확인하세요.
 
 ## 📁 프로젝트 구조
 
 ```
 src/
-├── components/           # React 컴포넌트
-│   ├── passport/        # AI Passport 관련
-│   ├── zauri/          # Zauri 시스템 관련
-│   ├── auth/           # 인증 컴포넌트
-│   └── ui/             # 공통 UI 컴포넌트
-├── lib/                # 핵심 라이브러리
-│   ├── passport/       # AI Passport 로직
-│   ├── zauri/          # Zauri 시스템 로직
-│   └── config/         # 설정 파일
-├── types/              # TypeScript 타입 정의
-│   ├── passport/       # AI Passport 타입
-│   ├── zauri/          # Zauri 타입
-│   └── common/         # 공통 타입
-├── hooks/              # 커스텀 React 훅
-├── app/                # Next.js App Router
-│   └── api/            # API 라우트
-└── utils/              # 유틸리티 함수
+├── app/                     # Next.js App Router
+│   ├── api/                # API 라우트들
+│   │   ├── ai/chat/       # AI 채팅 API
+│   │   ├── cue/mine/      # CUE 채굴 API
+│   │   └── system/health/ # 시스템 상태 API
+│   ├── layout.tsx         # 루트 레이아웃
+│   └── page.tsx          # 메인 페이지
+├── components/            # React 컴포넌트들
+│   ├── chat/             # 채팅 인터페이스
+│   ├── dashboard/        # 대시보드 컴포넌트
+│   ├── passport/         # AI Passport 컴포넌트
+│   └── ui/              # 기본 UI 컴포넌트
+├── hooks/               # 커스텀 React 훅들
+│   ├── chat/           # 채팅 관련 훅
+│   └── passport/       # Passport 관련 훅
+├── lib/                # 핵심 비즈니스 로직
+│   ├── agents/        # AI 에이전트 관리
+│   ├── config/        # 설정 파일들
+│   ├── cue/          # CUE 채굴 엔진
+│   ├── passport/     # AI Passport 관리
+│   └── utils/        # 유틸리티 함수들
+└── types/            # TypeScript 타입 정의
+    └── passport/     # Passport 관련 타입들
 ```
 
-## 🚀 시작하기
+## 🔧 주요 모듈
 
-### 1. 프로젝트 클론 및 설정
+### PassportManager
+```typescript
+import { passportManager } from '@/lib/passport/passport-manager';
 
-```bash
-# 저장소 클론
-git clone [repository-url]
-cd zauri-ai-passport
+// CUE 토큰 추가
+passportManager.addCueTokens(5, '데이터 추출');
 
-# 의존성 설치
-./install-dependencies.sh
-
-# 환경 변수 설정
-cp .env.example .env.local
+// 신뢰도 점수 업데이트
+passportManager.updateTrustScore(96.8);
 ```
 
-### 2. 환경 변수 설정
+### CueMiningEngine
+```typescript
+import { cueMiningEngine } from '@/lib/cue/cue-mining-engine';
 
-`.env.local` 파일을 편집하여 필요한 API 키들을 설정하세요:
-
-```env
-# Supabase 설정
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-
-# AI 서비스 API 키
-OPENAI_API_KEY=your_openai_api_key
-ANTHROPIC_API_KEY=your_anthropic_api_key
-
-# 기타 설정...
+// 플랫폼에서 데이터 추출
+const extractedData = await cueMiningEngine.extractFromPlatform(
+  'chatgpt',
+  (step) => console.log(step.text)
+);
 ```
 
-### 3. 개발 서버 실행
+### AgentTrainer
+```typescript
+import { agentTrainer } from '@/lib/agents/agent-trainer';
 
-```bash
-npm run dev
+// AI 에이전트 학습 시작
+const session = await agentTrainer.startTraining(
+  agent,
+  (session) => console.log(`진행률: ${session.currentEpoch}/${session.totalEpochs}`)
+);
 ```
 
-http://localhost:3000에서 애플리케이션을 확인하세요.
+## 🎨 컴포넌트 사용법
 
-## 🔧 주요 컴포넌트
-
-### AI Passport 카드
+### PassportCard
 ```tsx
-import { PassportCard } from '@/components/passport/passport-card/PassportCard';
+import { PassportCard } from '@/components/passport/passport-card';
 
 <PassportCard 
-  passport={userPassport}
-  onViewAnalytics={() => setView('analytics')}
+  onVaultClick={() => console.log('볼트 클릭')}
+  onAnalyticsClick={() => console.log('분석 클릭')}
 />
 ```
 
-### Zauri 채팅 인터페이스
+### ChatInterface
 ```tsx
-import { ChatInterface } from '@/components/zauri/chat/ChatInterface';
+import { ChatInterface } from '@/components/chat/chat-interface';
 
-<ChatInterface
-  user={zauriUser}
-  messages={messages}
-  onSendMessage={handleSendMessage}
-/>
+<ChatInterface />
 ```
 
-### 데이터 볼트 관리
+### MainDashboard
 ```tsx
-import { dataVaultManager } from '@/lib/passport/data-vault';
+import { MainDashboard } from '@/components/dashboard/main-dashboard';
 
-const vault = dataVaultManager.createVault({
-  name: '전문 지식',
-  category: 'professional'
-});
+export default function HomePage() {
+  return <MainDashboard />;
+}
 ```
 
-## 🔄 크로스플랫폼 동기화
+## 🔌 API 엔드포인트
 
-```tsx
-import { crossPlatformSync } from '@/lib/zauri/cross-platform';
+### AI 채팅
+```http
+POST /api/ai/chat
+Content-Type: application/json
 
-const transferId = await crossPlatformSync.startContextTransfer(
-  'chatgpt',
-  'claude',
-  contextData
-);
+{
+  "message": "안녕하세요",
+  "passportData": {
+    "vaults": ["전문 개발 지식", "커뮤니케이션 스타일"]
+  }
+}
 ```
 
-## 🧠 RAG-DAG 지식 그래프
+### CUE 채굴
+```http
+POST /api/cue/mine
+Content-Type: application/json
 
-```tsx
-import { ragDagSystem } from '@/lib/zauri/rag-dag';
-
-// 지식 노드 추가
-const nodeId = ragDagSystem.addKnowledgeNode(
-  '사용자 질문 내용',
-  { type: 'user_query', timestamp: new Date() }
-);
-
-// 유사한 노드 검색
-const similarNodes = ragDagSystem.searchSimilarNodes('검색어', 5);
+{
+  "platformId": "chatgpt",
+  "dataType": "conversation"
+}
 ```
 
-## 🔐 보안 기능
+### 시스템 상태
+```http
+GET /api/system/health
+```
 
-- **WebAuthn 생체인증**: 비밀번호 없는 안전한 로그인
-- **End-to-End 암호화**: 모든 개인 데이터 암호화
-- **DID 기반 신원**: 탈중앙화된 신원 증명
-- **토큰 기반 권한**: 세밀한 접근 제어
+## 🛠️ 개발 가이드
 
-## 🌟 고급 기능
+### 새로운 AI 에이전트 추가
+1. `src/types/passport/unified-passport.ts`에서 에이전트 타입 확장
+2. `src/lib/agents/agent-trainer.ts`에서 학습 로직 구현
+3. `src/components/dashboard/main-dashboard.tsx`에서 UI 추가
 
-### 개인화 AI 에이전트 훈련
-- 사용자별 맞춤 AI 모델
-- 체크포인트 기반 버전 관리
-- 성능 메트릭 추적
+### 새로운 플랫폼 연동
+1. `src/lib/config/app.config.ts`의 `supportedPlatforms`에 추가
+2. `src/lib/cue/cue-mining-engine.ts`에서 추출 로직 구현
+3. 연결 단계를 `ConnectedPlatform` 타입에 정의
 
-### 토큰 경제 시스템
-- **ZAURI**: 유틸리티 토큰
-- **ZGT**: 거버넌스 토큰  
-- **ZRP**: 보상 토큰
-- **CUE**: 컨텍스트 마이닝 토큰
+### 새로운 데이터 볼트 카테고리
+1. `UnifiedDataVault`의 `category` 타입 확장
+2. 해당 카테고리에 맞는 데이터 처리 로직 구현
+3. UI에서 새 카테고리 아이콘 및 색상 정의
 
-## 📚 API 참조
+## 🧪 테스트
 
-### AI Passport API
-- `PUT /api/passport/update` - Passport 정보 업데이트
-- `GET /api/passport/vaults` - 데이터 볼트 목록
-- `POST /api/passport/agents/train` - AI 에이전트 훈련
+```bash
+# 단위 테스트
+npm run test
 
-### Zauri API
-- `POST /api/zauri/chat` - AI 채팅 메시지
-- `POST /api/zauri/transfer` - 크로스플랫폼 전송
-- `GET /api/zauri/transfers` - 전송 상태 조회
+# E2E 테스트
+npm run test:e2e
+
+# 타입 체크
+npm run type-check
+```
+
+## 📦 빌드 및 배포
+
+```bash
+# 프로덕션 빌드
+npm run build
+
+# 프로덕션 서버 실행
+npm run start
+
+# Docker로 실행
+docker build -t ai-passport-cue .
+docker run -p 3000:3000 ai-passport-cue
+```
+
+## 🔐 보안 고려사항
+
+- **WebAuthn**: 생체인증을 통한 안전한 로그인
+- **DID**: 탈중앙화 신원 관리
+- **데이터 암호화**: 모든 개인 데이터는 end-to-end 암호화
+- **API 보안**: Rate limiting 및 인증 토큰 사용
+
+## 🌍 환경 변수
+
+필수 환경 변수들:
+- `OPENAI_API_KEY`: OpenAI API 키
+- `ANTHROPIC_API_KEY`: Anthropic API 키
+- `NEXT_PUBLIC_SUPABASE_URL`: Supabase 프로젝트 URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Supabase 익명 키
+
+선택적 환경 변수들:
+- `GOOGLE_AI_API_KEY`: Google AI API 키
+- `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID`: WalletConnect 프로젝트 ID
 
 ## 🤝 기여하기
 
@@ -195,9 +246,9 @@ const similarNodes = ragDagSystem.searchSimilarNodes('검색어', 5);
 
 ## 🆘 지원
 
-- 📧 이메일: support@zauri.ai
-- 💬 Discord: [커뮤니티 참여](https://discord.gg/zauri)
-- 📖 문서: [개발자 가이드](https://docs.zauri.ai)
+- 📧 이메일: support@ai-passport.dev
+- 💬 Discord: [커뮤니티 참여](https://discord.gg/ai-passport)
+- 📖 문서: [개발자 가이드](https://docs.ai-passport.dev)
 
 ---
 

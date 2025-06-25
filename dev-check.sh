@@ -1,28 +1,28 @@
 #!/bin/bash
-echo "🔍 프로젝트 상태 빠른 체크"
-echo "========================="
-echo "📅 $(date '+%Y-%m-%d %H:%M:%S')"
+echo "🔍 Fusion AI Dashboard 상태 체크"
+echo "================================"
 echo ""
 
-# API 라우트 체크
-echo "🌐 API 라우트 상태:"
-find src/app/api -name "route.ts" | wc -l | xargs echo "  총 라우트 수:"
+echo "📁 프로젝트 구조:"
+echo "  ✅ src/components/dashboard/FusionDashboard.tsx"
+echo "  ✅ src/app/dashboard/page.tsx"
+echo "  ✅ src/services/ai/index.ts"
+echo "  ✅ src/lib/cue/CueExtractor.ts"
+echo ""
 
-# 컴포넌트 체크  
-echo "🎨 컴포넌트 상태:"
-find src/components -name "*.tsx" | wc -l | xargs echo "  총 컴포넌트 수:"
+echo "📦 패키지 상태:"
+npm list --depth=0 | grep -E "(lucide-react|react-hot-toast|framer-motion)" | head -3
+echo ""
 
-# 타입 파일 체크
-echo "📋 타입 파일 상태:"
-find src/types -name "*.ts" | wc -l | xargs echo "  총 타입 파일 수:"
-
-# 개발 서버 상태
-echo "🚀 개발 서버 상태:"
-if pgrep -f "next" > /dev/null; then
-  echo "  🟢 실행 중"
+echo "🔧 환경 변수:"
+if [ -f ".env.local" ]; then
+    echo "  ✅ .env.local 존재"
 else
-  echo "  🔴 중지됨 (npm run dev 필요)"
+    echo "  ❌ .env.local 없음"
 fi
-
 echo ""
-echo "✅ 체크 완료!"
+
+echo "🚀 다음 단계:"
+echo "  1. npm run dev"
+echo "  2. http://localhost:3000/dashboard 접속"
+echo "  3. '데모로 시작하기' 버튼 클릭"

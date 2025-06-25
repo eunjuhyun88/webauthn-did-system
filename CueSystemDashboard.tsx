@@ -321,7 +321,7 @@ interface VaultSharingSettings {
 interface ContextTransferResult {
   success: boolean;
   preservationRate: number; // 목표: 95%
-  transferTime: number; // 목표: <3초
+  transferTime: number; // 목표: &lt;3초
   adaptedCues: ExtractedCue[];
   errors?: string[];
   platformSpecificAdaptations: Record<string, any>;
@@ -578,7 +578,7 @@ export default function CueSystemEnhancedDashboard() {
       lastExtractionTime: new Date(),
       extractionRate: 47.3, // cues per day
       contextPreservationRate: 95.3, // 목표: 95%+
-      avgTransferTime: 2.8, // seconds (목표: <3초)
+      avgTransferTime: 2.8, // seconds (목표: &lt;3초)
       webauthnProtected: 98.7, // % of cues protected
       multilingualSupport: ['korean', 'english', 'japanese'],
       totalTransfers: 1247,
@@ -1228,7 +1228,7 @@ ${appliedCues.map(cue =>
                   <span className="text-sm font-medium text-blue-800">전송 속도</span>
                 </div>
                 <div className="text-2xl font-bold text-blue-700">{avgTransferTime.toFixed(1)}s</div>
-                <div className="text-xs text-blue-600">목표: <3초</div>
+                <div className="text-xs text-blue-600">목표: &lt;3초</div>
               </div>
             </div>
             
@@ -1794,7 +1794,7 @@ ${appliedCues.map(cue =>
                       <h3 className="font-semibold text-gray-900">전송 속도</h3>
                     </div>
                     <div className="text-3xl font-bold text-blue-600 mb-2">{avgTransferTime.toFixed(1)}s</div>
-                    <div className="text-sm text-gray-500">목표: <3초 (달성 ✅)</div>
+                    <div className="text-sm text-gray-500">목표: &lt;3초 (달성 ✅)</div>
                   </div>
                   
                   <div className="bg-white rounded-2xl border border-gray-200 p-6">

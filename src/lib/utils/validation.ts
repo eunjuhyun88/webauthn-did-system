@@ -1,20 +1,29 @@
-/**
- * ✅ 입력 검증 유틸리티 함수들
- */
+// =============================================================================
+// ✅ 검증 유틸리티
+// =============================================================================
 
-export function validateEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-}
+export const validatePassportData = (data: any): boolean => {
+  return data && 
+         typeof data.did === 'string' && 
+         typeof data.walletAddress === 'string' &&
+         typeof data.trustScore === 'number' &&
+         data.trustScore >= 0 && data.trustScore <= 100;
+};
 
-export function validateUsername(username: string): boolean {
-  return username.length >= 3 && username.length <= 20;
-}
+export const validateCueAmount = (amount: number): boolean => {
+  return typeof amount === 'number' && 
+         amount >= 0 && 
+         amount <= 1000 && 
+         Number.isInteger(amount);
+};
 
-export function validatePassword(password: string): boolean {
-  return password.length >= 8;
-}
+export const validateMessage = (message: string): boolean => {
+  return typeof message === 'string' && 
+         message.trim().length > 0 && 
+         message.length <= 4000;
+};
 
-export function sanitizeInput(input: string): string {
-  return input.trim().replace(/[<>]/g, '');
-}
+export const validatePlatformId = (platformId: string): boolean => {
+  const validPlatforms = ['chatgpt', 'claude', 'gemini', 'discord'];
+  return typeof platformId === 'string' && validPlatforms.includes(platformId);
+};
