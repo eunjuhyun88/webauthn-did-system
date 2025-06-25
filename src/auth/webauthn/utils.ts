@@ -10,6 +10,7 @@ import type {
   ChallengeData 
 } from '@/types/webauthn';
 
+
 // =============================================================================
 // Base64URL 인코딩/디코딩 함수들
 // =============================================================================
@@ -198,16 +199,50 @@ export function parseCredentialResponse(credential: PublicKeyCredential): Parsed
 /**
  * ClientDataJSON 파싱
  */
-export function parseClientDataJSON(clientDataJSON: ArrayBuffer): {
-  type: string;
-  challenge: string;
-  origin: string;
-  crossOrigin?: boolean;
-} {
+export function parseClientDataJSON(
+  clientDataJSON: ArrayBuffer | Uint8Array | BufferSource
+): ClientData {
   const decoder = new TextDecoder();
-  const clientDataString = decoder.decode(clientDataJSON);
-  return JSON.parse(clientDataString);
+  
+  // 다양한 타입 지원
+  let uint8Array: Uint8Array;
+  if (clientDataJSON instanceof ArrayBuffer) {
+    uint8Array = new Uint8Array(clientDataJSON);
+  } else if (clientDataJSON instanceof Uint8Array) {
+    uint8Array = clientDataJSON;
+  } else {
+    // BufferSource 처리
+    uint8Array = new Uint8Array(clientDataJSON);
+  }
+  
+  const clientDataString = decoder.decode(uint8Array);
+  
+  try {
+    return JSON.parse(clientDataString);
+  } catch (error) {
+    throw new Error(`ClientDataJSON 파싱 실패: ${error}`);
+  }
 }
+
+// ================================================================================
+// 4. React 컴포넌트 import 수정 (src/components/auth/WebAuthnRegister.tsx)
+// ================================================================================
+
+// ❌ 기존 (React import 누락)
+import { UserPlus } from "lucide-react";
+
+// ✅ 수정된 버전
+import React, { useState, useCallback } from 'react';
+import { UserPlus, Eye, EyeOff, Loader2 } from "lucide-react";
+
+// FormData 타입 충돌 해결
+interface WebAuthnFormData {  // HTML FormData와 구분
+  username: string;
+  email: string; 
+  displayName: string;
+}
+
+// ================================================================================
 
 // =============================================================================
 // 에러 처리

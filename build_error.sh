@@ -1,3 +1,147 @@
+# =============================================================================
+# 🔧 빌드 오류 해결 스크립트
+# 1. NextResponse 중복 선언 문제 해결
+# 2. Dashboard 페이지 클라이언트 컴포넌트 수정
+# =============================================================================
+
+echo "🔧 빌드 오류 해결 시작..."
+
+# =============================================================================
+# 1. NextResponse 중복 문제 해결
+# =============================================================================
+
+echo "📝 WebAuthn 등록 시작 API 파일 수정 중..."
+
+# src/app/api/webauthn/register/begin/route.ts 파일의 중복된 NextResponse import 제거
+cat > src/app/api/webauthn/register/begin/route.ts << 'EOF'
+// =============================================================================
+// 🔐 WebAuthn 등록 시작 API
+// src/app/api/webauthn/register/begin/route.ts
+// =============================================================================
+
+import { NextRequest, NextResponse } from 'next/server';
+import { generateRegistrationOptions } from '@simplewebauthn/server';
+import { v4 as uuidv4 } from 'uuid';
+
+// 등록 세션 임시 저장소 (실제로는 Redis나 DB 사용)
+const registrationSessions = new Map<string, {
+  challenge: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  createdAt: Date;
+}>();
+
+// 세션 정리 (30분 후 자동 삭제)
+setInterval(() => {
+  const now = new Date();
+  for (const [sessionId, session] of registrationSessions) {
+    if (now.getTime() - session.createdAt.getTime() > 30 * 60 * 1000) {
+      registrationSessions.delete(sessionId);
+    }
+  }
+}, 5 * 60 * 1000); // 5분마다 정리
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { username, displayName } = body;
+
+    // 입력값 검증
+    if (!username || !displayName) {
+      return NextResponse.json({
+        success: false,
+        error: '사용자 이름과 표시 이름이 필요합니다.'
+      }, { status: 400 });
+    }
+
+    // 세션 ID 생성
+    const sessionId = uuidv4();
+    const userId = uuidv4();
+
+    // WebAuthn 등록 옵션 생성
+    const options = await generateRegistrationOptions({
+      rpName: 'Cue System',
+      rpID: process.env.WEBAUTHN_RP_ID || 'localhost',
+      userID: new TextEncoder().encode(userId),
+      userName: username,
+      userDisplayName: displayName,
+      timeout: 60000,
+      attestationType: 'none',
+      excludeCredentials: [], // 기존 자격증명 제외
+      authenticatorSelection: {
+        residentKey: 'required',
+        userVerification: 'required',
+        authenticatorAttachment: 'platform' // 플랫폼 인증기 우선
+      },
+      supportedAlgorithmIDs: [-7, -257] // ES256, RS256
+    });
+
+    // 세션 정보 저장
+    registrationSessions.set(sessionId, {
+      challenge: options.challenge,
+      userId,
+      username,
+      displayName,
+      createdAt: new Date()
+    });
+
+    console.log(`✅ WebAuthn 등록 시작: ${username} (세션: ${sessionId})`);
+
+    return NextResponse.json({
+      success: true,
+      options,
+      sessionId
+    }, {
+      headers: {
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+
+  } catch (error) {
+    console.error('WebAuthn 등록 시작 API 오류:', error);
+    
+    return NextResponse.json({
+      success: false,
+      error: '서버 내부 오류가 발생했습니다.'
+    }, { status: 500 });
+  }
+}
+
+// 세션 데이터 조회 (내부 사용)
+export function getRegistrationSession(sessionId: string) {
+  return registrationSessions.get(sessionId);
+}
+
+// 세션 삭제 (내부 사용)
+export function deleteRegistrationSession(sessionId: string) {
+  registrationSessions.delete(sessionId);
+}
+
+// OPTIONS 핸들러 (CORS 대응)
+export async function OPTIONS(req: NextRequest) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}
+EOF
+
+echo "✅ WebAuthn 등록 시작 API 파일 수정 완료"
+
+# =============================================================================
+# 2. Dashboard 페이지 클라이언트 컴포넌트 수정
+# =============================================================================
+
+echo "📝 Dashboard 페이지 클라이언트 컴포넌트 수정 중..."
+
+# src/app/dashboard/page.tsx 파일 수정 (파일 첫 줄에 'use client' 추가)
+cat > src/app/dashboard/page.tsx << 'EOF'
 'use client';
 
 // =============================================================================
@@ -927,3 +1071,229 @@ function SettingsTab() {
     </div>
   );
 }
+EOF
+
+echo "✅ Dashboard 페이지 클라이언트 컴포넌트 수정 완료"
+
+# =============================================================================
+# 3. 추가 누락 파일 생성 (빠른 수정)
+# =============================================================================
+
+echo "📝 누락된 Cue API 폴더 및 파일 생성 중..."
+
+# Cue API 폴더 생성
+mkdir -p src/app/api/cue/extract
+mkdir -p src/app/api/cue/apply
+
+# Cue 추출 API 생성
+cat > src/app/api/cue/extract/route.ts << 'EOF'
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    
+    // 임시 응답 (실제 구현 필요)
+    return NextResponse.json({
+      success: true,
+      message: 'Cue 추출 API가 준비 중입니다.',
+      data: body
+    });
+  } catch (error) {
+    return NextResponse.json({
+      success: false,
+      error: 'Cue 추출 중 오류가 발생했습니다.'
+    }, { status: 500 });
+  }
+}
+EOF
+
+# Cue 적용 API 생성
+cat > src/app/api/cue/apply/route.ts << 'EOF'
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    
+    // 임시 응답 (실제 구현 필요)
+    return NextResponse.json({
+      success: true,
+      message: 'Cue 적용 API가 준비 중입니다.',
+      data: body
+    });
+  } catch (error) {
+    return NextResponse.json({
+      success: false,
+      error: 'Cue 적용 중 오류가 발생했습니다.'
+    }, { status: 500 });
+  }
+}
+EOF
+
+echo "✅ Cue API 파일 생성 완료"
+
+# =============================================================================
+# 4. 유틸리티 파일들 생성
+# =============================================================================
+
+echo "📝 누락된 유틸리티 파일들 생성 중..."
+
+# crypto.ts 파일 생성
+mkdir -p src/lib/utils
+cat > src/lib/utils/crypto.ts << 'EOF'
+/**
+ * 🔐 암호화 유틸리티 함수들
+ */
+
+export async function encryptData(data: string, key: string): Promise<string> {
+  // 임시 구현 (실제로는 WebCrypto API 사용)
+  return btoa(data);
+}
+
+export async function decryptData(encryptedData: string, key: string): Promise<string> {
+  // 임시 구현 (실제로는 WebCrypto API 사용)
+  return atob(encryptedData);
+}
+
+export function generateRandomString(length: number = 32): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+EOF
+
+# validation.ts 파일 생성
+cat > src/lib/utils/validation.ts << 'EOF'
+/**
+ * ✅ 입력 검증 유틸리티 함수들
+ */
+
+export function validateEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+export function validateUsername(username: string): boolean {
+  return username.length >= 3 && username.length <= 20;
+}
+
+export function validatePassword(password: string): boolean {
+  return password.length >= 8;
+}
+
+export function sanitizeInput(input: string): string {
+  return input.trim().replace(/[<>]/g, '');
+}
+EOF
+
+echo "✅ 유틸리티 파일들 생성 완료"
+
+# =============================================================================
+# 5. Tailwind 설정 파일 생성
+# =============================================================================
+
+echo "📝 Tailwind 설정 파일 생성 중..."
+
+cat > tailwind.config.js << 'EOF'
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/components/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
+  theme: {
+    extend: {
+      colors: {
+        background: "var(--background)",
+        foreground: "var(--foreground)",
+      },
+    },
+  },
+  plugins: [],
+}
+EOF
+
+echo "✅ Tailwind 설정 파일 생성 완료"
+
+# =============================================================================
+# 6. useAuth.ts 파일 내용 추가
+# =============================================================================
+
+echo "📝 useAuth.ts 파일 내용 추가 중..."
+
+cat > src/lib/hooks/useAuth.ts << 'EOF'
+'use client';
+
+import { useState, useEffect } from 'react';
+
+export interface User {
+  id: string;
+  email: string;
+  displayName: string;
+  authMethod: 'webauthn' | 'google' | 'demo';
+}
+
+export function useAuth() {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    checkAuthStatus();
+  }, []);
+
+  const checkAuthStatus = async () => {
+    try {
+      const response = await fetch('/api/auth/check');
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData.user);
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const login = async (credentials: any) => {
+    // 로그인 로직 구현
+  };
+
+  const logout = async () => {
+    // 로그아웃 로직 구현
+    setUser(null);
+  };
+
+  return {
+    user,
+    loading,
+    login,
+    logout,
+    isAuthenticated: !!user
+  };
+}
+EOF
+
+echo "✅ useAuth.ts 파일 내용 추가 완료"
+
+# =============================================================================
+# 완료 메시지
+# =============================================================================
+
+echo ""
+echo "🎉 빌드 오류 해결 완료!"
+echo "================================"
+echo "✅ NextResponse 중복 선언 문제 해결"
+echo "✅ Dashboard 페이지 클라이언트 컴포넌트 수정"
+echo "✅ 누락된 Cue API 파일들 생성"
+echo "✅ 유틸리티 파일들 생성"
+echo "✅ Tailwind 설정 파일 생성"
+echo "✅ useAuth.ts 파일 내용 추가"
+echo ""
+echo "이제 다음 명령어로 빌드를 시도해보세요:"
+echo "npm run build"

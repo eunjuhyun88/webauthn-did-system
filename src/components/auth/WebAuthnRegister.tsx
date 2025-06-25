@@ -5,9 +5,15 @@
 // =============================================================================
 
 'use client';
+import React, { useState, useCallback } from 'react';
+import { UserPlus, Eye, EyeOff, Loader2 } from "lucide-react";
 
-import React, { useState } from 'react';
-import { UserPlus, Shield, Loader2, Check, X, User, Mail, Eye } from 'lucide-react';
+// FormData 타입 충돌 해결
+interface WebAuthnFormData {  // HTML FormData와 구분
+  username: string;
+  email: string; 
+  displayName: string;
+}
 
 interface WebAuthnRegisterProps {
   onSuccess: (user: any) => void;
